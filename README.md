@@ -381,11 +381,10 @@ class Article(models.Model):
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
-| `article_id` | int  | 创建的文章id。 |
+- **200 OK**: 创建文章成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
+
 
 ---
 
@@ -402,16 +401,16 @@ class Article(models.Model):
 | `id` | int | 是   | 文章的id。 |
 | `article_title` | string | 否   | 文章标题。 |
 | `content` | string | 否   | 文章内容。 |
-| `tags` | string | 否   | 文章标签。以逗号分隔。 |
+| `tags` | string | 否   | 文章标签。以#号分隔。 |
 | `article_type` | string | 否   | 文章类型：原创或转载。 |
 | `origin_link` | string | 否   | 转载时的原文链接。 |
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
+- **200 OK**: 编辑文章成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
+
 
 ---
 
@@ -432,6 +431,9 @@ class Article(models.Model):
 
 **响应参数：**
 
+- **200 OK**: 删除文章成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
 
 ---
 
@@ -439,7 +441,7 @@ class Article(models.Model):
 
 #### **url：/index/article/detail**
 
-**POST /article/detail**
+**GET /article/detail?id=id**
 
 **请求参数：**
 
@@ -452,12 +454,13 @@ class Article(models.Model):
 | -------- | ---- | -------- |
 | `status` | int  | 状态码。 |
 | `message` | string  | 返回信息。 |
-| `article_detail` | struct  | 文章的详细信息。 |
+| `article_detail` | list | 文章详情。 |
 
+- **200 OK**: 获取文章详情成功。
 
-**GET /article/detail?id=id**
+- **500 Internal Server Error**: 服务器内部错误；
 
-**响应参数：**
+若获取成功，则`article_detail`的内容如下：
 
 | 参数名   | 类型 | 描述     |
 | -------- | ---- | -------- |
@@ -475,11 +478,11 @@ class Article(models.Model):
 | `source_url` | string | 资源链接。 |
 | `publish_time` | time  | 文章发布时间。 |
 
-### *（5）根据id分页获取Article下的Post列表：待修改
+### *（5）根据id分页获取Article下的Post列表：试行版
 
 #### **url：/index/article/post_list**
 
-**POST /article/post_list**
+**<1> POST /article/post_list**
 
 **描述：**
 此接口用于获取文章对应id和分页要求。
@@ -487,14 +490,56 @@ class Article(models.Model):
 **请求参数：**
 | 参数名  | 类型   | 必填 | 描述           |
 | ------- | ------ | ---- | -------------- |
-| `id` | int | 是   | 项目对应id。 |
+| `id` | int | 是   | 文章对应id。 |
 | `page_index` | int | 否   | 第几页，无此字段默认⾸⻚ |
 | `page_size` | int | 否   | 每⻚项⽬数，⽆此字段默认20 |
 
-**GET /article/post_list?id=id**
+**响应参数：**
+
+- **200 OK**: 获取文章详情成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
+
+**<2> GET /article/post_list?id=id**
 
 **描述：**
 此接口用于获取对应id的Article下对应页的所有post。
+
+**请求参数：**
+| 参数名  | 类型   | 必填 | 描述           |
+| ------- | ------ | ---- | -------------- |
+| `id` | int | 是   | 文章对应id。 |
+
+**响应参数：**
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `post_list` | array  | post列表。 |
+
+- **200 OK**: 获取post列表成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
+
+若获取成功，则`post_list`中的每个list对象的内容如下：
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `post_id` | int  | 帖子id。 |
+| `post_title` | string  | 帖子标题。 |
+| `post_content` | string  | 帖子内容。 |
+| `poster_name` | string  | 发帖人的名字。 |
+| `poster_profile_url` | string  | 发帖人头像的url。 |
+| `view_count` | int  | 帖子的浏览量。 |
+| `like_count` | int  | 帖子的点赞数。 |
+| `reply_count` | int  | 帖子的回复数。 |
+| `tags` | array  | 帖子的标签。 |
+| `publish_time` | time  | 帖子的发布时间。 |
+
+
+### （6）分页获取文章列表
+
+
+
 
 ## 4.Post与Reply板块
 
@@ -592,7 +637,7 @@ class Reply(models.Model):
 
 #### **url：/index/post/detail**
 
-**POST /post/detail**
+**GET /post/detail?id=id**
 
 **描述：**
 此接口用于获取指定Post的详细信息。
@@ -605,16 +650,17 @@ class Reply(models.Model):
 
 **响应参数：**
 
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `post_detail` | list  | 帖子详情。 |
+
 - **200 OK**: 获取Post详情成功，返回详细信息。
 - **404 Not Found**: 未找到指定的帖子。
 - **400 Bad Request**: 请求参数不合法。
 
-**GET /post/course_post?id=id**
-
-**描述：**
-此接口用于获取指定Post的详细信息。
-
-**响应参数：**
+若获取成功，则`post_detail`的参数如下：
 
 | 参数名   | 类型 | 描述     |
 | -------- | ---- | -------- |
@@ -623,7 +669,7 @@ class Reply(models.Model):
 | `post_content` | string  | 帖子内容。 |
 | `poster_name` | string  | 发帖人的名字。 |
 | `poster_profile_url` | string  | 发帖人头像的url。 |
-| `view_count` | int  | 帖子的浏览量。 |
+| `view_count` | int  | 帖子的浏览量。 | 
 | `like_count` | int  | 帖子的点赞数。 |
 | `reply_count` | int  | 帖子的回复数。 |
 | `tags` | array  | 帖子的标签。 |
@@ -635,10 +681,10 @@ class Reply(models.Model):
 
 #### **url：/index/post/reply_list**
 
-**POST /post/reply_list**
+**<1> POST /post/reply_list**
 
 **描述：**
-此接口用于根据Post的id获取分页的Reply列表。
+此接口用于获取post对应id和分页要求。
 
 **请求参数：**
 
@@ -651,12 +697,34 @@ class Reply(models.Model):
 **响应参数：**
 
 - **200 OK**: 获取Reply列表成功，返回分页数据。
+
 - **404 Not Found**: 未找到指定的帖子或回复。
+
 - **400 Bad Request**: 请求参数不合法。
 
-**GET /post/reply_list**
+**<2> GET /post/reply_list?id=id**
+
+**描述：**
+此接口用于根据Post的id分页获取Reply列表。
 
 **请求参数：**
+
+| 参数名  | 类型   | 必填 | 描述           |
+| ------- | ------ | ---- | -------------- |
+| `id` | int | 是   | post对应id。 |
+
+**响应参数：**
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `reply_list` | array  | reply列表。 |
+
+- **200 OK**: 获取reply列表成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
+
+若获取成功，则`reply_list`中的每个对象内容如下：
 
 | 参数名   | 类型   | 描述     |
 | -------- | ------ | -------- |
@@ -672,6 +740,8 @@ class Reply(models.Model):
 ### （5）删除Post
 
 #### **url：/index/post/delete**
+
+**POST /post/delete**
 
 **描述：**
 此接口用于删除指定的Post。
@@ -691,7 +761,9 @@ class Reply(models.Model):
 
 ### （6）在Post下发表Reply
 
-#### **url：/index/reply/detail**
+#### **url：/index/reply/create**
+
+**POST /reply/create**
 
 **描述：**
 此接口用于在指定Post下发表回复。
@@ -700,7 +772,7 @@ class Reply(models.Model):
 
 | 参数名  | 类型   | 必填 | 描述           |
 | ------- | ------ | ---- | -------------- |
-| `post_id` | int | 是   | 帖子的id。 |
+| `id` | int | 是   | 帖子的id。 |
 | `reply_content` | string | 是   | 回复内容。 |
 
 **响应参数：**
@@ -713,6 +785,8 @@ class Reply(models.Model):
 ### （7）删除Reply
 
 #### **url：/index/reply/delete**
+
+**POST /reply/delete**
 
 **描述：**
 此接口用于删除指定的Reply。
@@ -727,6 +801,46 @@ class Reply(models.Model):
 
 - **200 OK**: 回复删除成功。
 - **404 Not Found**: 未找到指定的回复。
+
+---
+
+### （8）获取reply详情
+
+#### **url：/index/reply/detail**
+
+**GET /reply/detail?id=id**
+
+**描述：**
+此接口用于获取指定reply的详细信息。
+
+**请求参数：**
+
+| 参数名  | 类型   | 必填 | 描述           |
+| ------- | ------ | ---- | ----------|
+| `id` | int | 是   | 回复的id。 |
+
+**响应参数：**
+
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `reply_detail` | list  | 回复详情。 |
+
+- **200 OK**: 获取reply详情成功，返回详细信息。
+- **404 Not Found**: 未找到指定的回复。
+- **400 Bad Request**: 请求参数不合法。
+
+若获取成功，则`reply_detail`的参数如下：
+
+| 参数名   | 类型   | 描述     |
+| -------- | ------ | -------- |
+| `reply_id` | int  | 回复id。 |
+| `reply_content` | string  | 回复内容。 |
+| `replier_name` | string  | 回复者名字。 |
+| `replier_profile_url` | string  | 回复者头像的url。 |
+| `like_count` | int  | 回复的点赞数。 |
+| `publish_time` | time  | 回复的发布时间。 |
 
 ---
 
@@ -789,7 +903,7 @@ class Course(models.Model):
 
 **响应参数：**
 
-- **201 Created**: 课程创建成功。
+- **200 OK**: 课程创建成功。
 - **400 Bad Request**: 请求参数不完整或格式错误。
 
 ---
@@ -909,11 +1023,17 @@ class Course(models.Model):
 
 **响应参数：**
 
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `course_detail` | list  |课程详情。 |
+
 - **200 OK**: 获取课程详情成功，返回详细信息。
 - **404 Not Found**: 未找到指定的课程。
 - **400 Bad Request**: 请求参数不合法。
 
-返回的`course_detail`内容如下：
+若获取成功，则`course_detail`内容如下：
 
 | 参数名   | 类型 | 描述     |
 | -------- | ---- | -------- |
@@ -937,36 +1057,57 @@ class Course(models.Model):
 
 #### **url：/index/course/post_list**
 
-**GET /course/post_list?course_id=id&page=page&page_size=size**
+**<1> POST /course/post_list**
+
+**描述：**
+此接口用于获取文章对应id和分页要求。
 
 **请求参数：**
-
 | 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ------------- |
-| `id` | int | 是   | 课程ID。 |
-| `page_index` | int | 否   | 当前页码，默认为1。 |
-| `page_size` | int | 否   | 每页显示的Post数，默认为10。 |
+| ------- | ------ | ---- | -------------- |
+| `id` | int | 是   | 课程对应id。 |
+| `page_index` | int | 否   | 第几页，无此字段默认⾸⻚ |
+| `page_size` | int | 否   | 每⻚项⽬数，⽆此字段默认20 |
 
 **响应参数：**
 
-- **200 OK**: 获取Post列表成功，返回分页数据。
-- **404 Not Found**: 未找到指定的课程或Post。
-- **400 Bad Request**: 请求参数不合法。
+- **200 OK**: 获取文章详情成功。
 
-返回的`posts`内容如下：
+- **500 Internal Server Error**: 服务器内部错误；
 
-| 参数名   | 类型   | 描述     |
-| -------- | ------ | -------- |
+**<2> GET /course/post_list?id=id**
+
+**描述：**
+此接口用于获取对应id的Course下对应页的所有post。
+
+**请求参数：**
+| 参数名  | 类型   | 必填 | 描述           |
+| ------- | ------ | ---- | -------------- |
+| `id` | int | 是   | 课程对应id。 |
+
+**响应参数：**
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `post_list` | array  | post列表。 |
+
+- **200 OK**: 获取post列表成功。
+
+- **500 Internal Server Error**: 服务器内部错误；
+
+若获取成功，则`post_list`中的每个list对象的内容如下：
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
 | `post_id` | int  | 帖子id。 |
 | `post_title` | string  | 帖子标题。 |
 | `post_content` | string  | 帖子内容。 |
-| `poster_name` | string  | 发帖人名字。 |
+| `poster_name` | string  | 发帖人的名字。 |
 | `poster_profile_url` | string  | 发帖人头像的url。 |
 | `view_count` | int  | 帖子的浏览量。 |
 | `like_count` | int  | 帖子的点赞数。 |
-| `reply_count` | int  | 帖子的回复数
-
-。 |
+| `reply_count` | int  | 帖子的回复数。 |
+| `tags` | array  | 帖子的标签。 |
 | `publish_time` | time  | 帖子的发布时间。 |
 
 ---
@@ -979,26 +1120,44 @@ class Course(models.Model):
 
 ### （0）Star类
 
+
+
 ### （1）收藏文章
 
+
+
 ### （2）收藏课程
+
+
 
 
 ## 9.点赞板块
 
 ### （0）Like类
 
+
+
 ### （1）给Article点赞
+
+
 
 ### （2）给Post点赞
 
+
+
 ### （3）给Reply点赞
+
+
 
 ## 10.图片API板块
 
 ### （0）Image类
 
+
+
 ### （1）上传image
+
+
 
 ## 11.封禁与屏蔽板块
 还没开始写
