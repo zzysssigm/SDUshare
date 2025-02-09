@@ -7,6 +7,8 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from ..models import User, EmailVerificationCode
 from ..utils.email_utils import (
     generate_code,
@@ -209,3 +211,26 @@ class LoginPasswdView(APIView):
             'user_name': user.username,
             'email': user.email
         }, status=status.HTTP_200_OK)
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # 添加自定义声明
+        token['username'] = user.username
+        token['is_admin'] = user.is_superuser
+        return token
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # 添加自定义响应字段
+        data.update({
+            'user_id': self.user.id,
+            'username': self.user.username,
+            'email': self.user.email
+        })
+        return data
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer

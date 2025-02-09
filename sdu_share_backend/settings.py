@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import environ
 import os
-
+from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -43,9 +43,12 @@ INSTALLED_APPS = [
     'sdu_share',
     'rest_framework',
     'corsheaders',
+    'rest_framework_simplejwt',
 ]
 
+
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -53,6 +56,16 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# 跨域设置
+# 仅允许 API 路由跨域
+CORS_URLS_REGEX = r'^/api/.*$'  
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://localhost:5500",
+    "http://localhost:8000",
+    "http://localhost:80",
 ]
 
 ROOT_URLCONF = 'sdu_share_backend.urls'
@@ -153,3 +166,22 @@ CACHES = {
 # auth user
 AUTH_USER_MODEL = 'sdu_share.User'
 
+
+# restframework相关配置
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # 访问令牌有效期
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # 刷新令牌有效期
+    'ROTATE_REFRESH_TOKENS': True,                   # 刷新时生成新令牌
+    'AUTH_HEADER_TYPES': ('Bearer',),                # 请求头格式
+}
+
+APPEND_SLASH = False  # 关闭自动添加斜杠
