@@ -44,11 +44,13 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
+     'rest_framework_simplejwt.token_blacklist',
 ]
 
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', 
+    'sdu_share.middleware.JWTAuthenticationMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -172,14 +174,12 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ]
 }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # 访问令牌有效期
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # 刷新令牌有效期
+    'BLACKLIST_AFTER_ROTATION': True,                # 启用自动黑名单
     'ROTATE_REFRESH_TOKENS': True,                   # 刷新时生成新令牌
     'AUTH_HEADER_TYPES': ('Bearer',),                # 请求头格式
 }

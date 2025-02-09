@@ -25,12 +25,14 @@ class User(AbstractUser):
         return self.username
 
 class EmailVerificationCode(models.Model):
+    PURPOSE_CHOICES = [
+        ('register', '注册'),
+        ('login', '登录'),
+        ('delete', '注销'),
+        ('reset', '重置密码')
+    ]
     email = models.EmailField()
     code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['email', 'created_at'])
-        ]
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES)
