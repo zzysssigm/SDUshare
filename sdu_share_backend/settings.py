@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'sdu_share',
+    'mptt',
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
