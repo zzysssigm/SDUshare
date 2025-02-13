@@ -172,7 +172,8 @@ AUTH_USER_MODEL = 'sdu_share.User'
 # restframework相关配置
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'sdu_share.authentication.CustomJWTAuthentication'
     ],
 }
 
@@ -180,7 +181,8 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # 访问令牌有效期
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # 刷新令牌有效期
     'BLACKLIST_AFTER_ROTATION': True,                # 启用自动黑名单
-    'ROTATE_REFRESH_TOKENS': True,                   # 刷新时生成新令牌
+    'ROTATE_REFRESH_TOKENS': False,                   # 刷新时生成新令牌
+    'TOKEN_OBTAIN_SERIALIZER': 'sdu_share.serializers.CustomTokenObtainPairSerializer',  # 自定义令牌获取序列化器
     'AUTH_HEADER_TYPES': ('Bearer',),                # 请求头格式
 }
 

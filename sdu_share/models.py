@@ -2,7 +2,16 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 
+class BlacklistedAccessToken(models.Model):
+    jti = models.CharField(max_length=255, unique=True)
+    expires_at = models.DateTimeField()
+
+    @classmethod
+    def clean_expired(cls):
+        cls.objects.filter(expires_at__lt=timezone.now()).delete()
+
 class User(AbstractUser):
+    current_access_jti = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField(unique=True)
     email_code = models.IntegerField(null=True, blank=True)
     reputation = models.IntegerField(default=100)

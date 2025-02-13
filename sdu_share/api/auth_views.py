@@ -10,10 +10,13 @@ from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from django.contrib.auth import logout
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
+from ..models import BlacklistedAccessToken
+from ..authentication import CustomJWTAuthentication
+from datetime import datetime
 
 from ..models import User, EmailVerificationCode
 from ..utils.email_utils import (
@@ -230,27 +233,27 @@ class LoginPasswdView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        # 添加自定义声明
-        token['username'] = user.username
-        token['is_admin'] = user.is_superuser
-        return token
+# class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+#     @classmethod
+#     def get_token(cls, user):
+#         token = super().get_token(user)
+#         # 添加自定义声明
+#         token['username'] = user.username
+#         token['is_admin'] = user.is_superuser
+#         return token
 
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        # 添加自定义响应字段
-        data.update({
-            'user_id': self.user.id,
-            'username': self.user.username,
-            'email': self.user.email
-        })
-        return data
+#     def validate(self, attrs):
+#         data = super().validate(attrs)
+#         # 添加自定义响应字段
+#         data.update({
+#             'user_id': self.user.id,
+#             'username': self.user.username,
+#             'email': self.user.email
+#         })
+#         return data
 
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
+# class CustomTokenObtainPairView(TokenObtainPairView):
+#     serializer_class = CustomTokenObtainPairSerializer
 
 
 class LoginEmailView(APIView):
@@ -404,19 +407,33 @@ class LoginEmailView(APIView):
     
 
 class LogoutView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CustomJWTAuthentication]  # 使用自定义认证类
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """JWT登出接口"""
+        """JWT登出接口，拉黑refresh和access token"""
         try:
-            # 获取刷新令牌
+            # 拉黑refresh token
             refresh_token = request.data.get('refresh')
             if refresh_token:
                 token = RefreshToken(refresh_token)
-                token.blacklist()  # 将refresh令牌加入黑名单
+                token.blacklist()
 
-            # 返回用户信息
+            # 拉黑当前access token
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '').split()
+            if len(auth_header) == 2 and auth_header[0].lower() == 'bearer':
+                access_token_str = auth_header[1]
+                access_token = AccessToken(access_token_str)
+                jti = access_token.get('jti')
+                exp = datetime.utcfromtimestamp(access_token['exp'])
+                
+                # 将access token加入黑名单并清理过期项
+                BlacklistedAccessToken.objects.get_or_create(
+                    jti=jti, 
+                    defaults={'expires_at': exp}
+                )
+                BlacklistedAccessToken.clean_expired()
+
             return Response({
                 'status': 200,
                 'message': '登出成功',
@@ -429,7 +446,6 @@ class LogoutView(APIView):
                 'status': 400,
                 'message': f'令牌无效: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
-            
         except Exception as e:
             return Response({
                 'status': 500,
