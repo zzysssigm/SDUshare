@@ -45,3 +45,11 @@ class EmailVerificationCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES)
+
+class BlockList(models.Model):
+    from_user = models.ForeignKey(User, related_name='blocking', on_delete=models.CASCADE)
+    to_user = models.ForeignKey(User, related_name='blocked', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('from_user', 'to_user')

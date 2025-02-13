@@ -187,3 +187,9 @@ SIMPLE_JWT = {
 }
 
 APPEND_SLASH = False  # 关闭自动添加斜杠
+
+# Celery配置
+# CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Redis作为消息代理
+# CELERY_RESULT_BACKEND = 'django-db'             # 使用Django数据库存储结果
+# CELERY_ACCEPT_CONTENT = ['json']
+# CELERY_TASK_SERIALIZER = 'json'

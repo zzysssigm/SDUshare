@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views
+from sdu_share.api import auth_views, blacklist_views
 
 from .views import CustomTokenRefreshView
 
@@ -16,4 +16,8 @@ urlpatterns = [
     path('api/delete_account', auth_views.DeleteAccountView.as_view(), name='delete_account'),
     # 密码重置
     path('api/reset_password', auth_views.ResetPasswordView.as_view(), name='reset_password'),
+    # 黑名单相关
+    path('api/block', blacklist_views.BlockUserView.as_view(), name='block-user'),
+    path('api/unblock', blacklist_views.UnblockUserView.as_view(), name='unblock-user'),
+    path('api/blocklist', blacklist_views.BlockListView.as_view(), name='block-list'),
 ]
