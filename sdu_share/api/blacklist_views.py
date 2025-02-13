@@ -24,6 +24,11 @@ class BlockUserView(APIView):
                 'status': 400,
                 'message': '缺少to_user_id参数'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            to_user_id = int(request.data.get('to_user_id'))
+        except (TypeError, ValueError):
+            return Response({'message': '参数类型错误'}, status=400)
 
         try:
             # 验证被拉黑用户是否存在
@@ -83,6 +88,10 @@ class UnblockUserView(APIView):
                 'message': '缺少to_user_id参数'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            to_user_id = int(request.data.get('to_user_id'))
+        except (TypeError, ValueError):
+            return Response({'message': '参数类型错误'}, status=400)
         try:
             # 获取被拉黑用户
             to_user = User.objects.get(id=to_user_id)
