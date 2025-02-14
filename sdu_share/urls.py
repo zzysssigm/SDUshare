@@ -60,4 +60,7 @@ urlpatterns = [
     path('api/course/detail', course_views.CourseDetailView.as_view(), name='course-detail'),
     path('api/course/list', course_views.CourseListView.as_view(), name='course-list'),
 
+    path('api/course/post_list', course_views.CoursePostListView.as_view(), name='course-post-list'),
+    path('api/course/score_list', course_views.CourseScoreListView.as_view(), name='course-score-list'),
+
 ]

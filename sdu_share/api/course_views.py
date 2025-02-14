@@ -539,3 +539,156 @@ class CourseListView(BaseCourseAPIView):
             return self.error_response(400, "分页参数格式错误")
         except Exception as e:
             return self.error_response(500, f"服务器错误: {str(e)}")
+        
+from django.core.paginator import Paginator, EmptyPage
+from django.contrib.contenttypes.models import ContentType
+from ..models import Post, Like, Course
+
+class CoursePostListView(BaseCourseAPIView):
+    """课程关联帖子分页接口（修复字段冲突版）"""
+    
+    DEFAULT_PAGE_SIZE = 20
+    MAX_PAGE_SIZE = 100
+
+    def get(self, request):
+        try:
+            # 参数解析
+            course_id = request.GET.get('course_id')
+            page_index = int(request.GET.get('page_index', 1))
+            page_size = int(request.GET.get('page_size', self.DEFAULT_PAGE_SIZE))
+
+            # 参数校验
+            if not course_id:
+                return self.error_response(400, "缺少课程ID参数")
+            if page_index < 1 or page_size < 1:
+                return self.error_response(400, "分页参数必须大于0")
+
+            # 验证课程存在性
+            try:
+                Course.objects.get(id=course_id)
+            except Course.DoesNotExist:
+                return self.error_response(404, "课程不存在")
+
+            # 修改字段名称避免冲突
+            base_query = Post.objects.filter(
+                course_id=course_id
+            ).select_related('poster').annotate(
+                annotated_like_count=Count('likes'),
+                annotated_reply_count=Count('replies')  # 修改后的字段名
+            ).order_by('-publish_time')
+
+            # 分页处理
+            paginator = Paginator(base_query, page_size)
+            try:
+                page_obj = paginator.page(page_index)
+            except EmptyPage:
+                return self.success_response(
+                    "无更多数据",
+                    post_list=[],
+                    total_pages=paginator.num_pages,
+                    current_page=page_index
+                )
+
+            # 获取当前用户点赞状态
+            current_user = request.user if request.user.is_authenticated else None
+            liked_post_ids = set()
+            if current_user:
+                ct = ContentType.objects.get_for_model(Post)
+                liked_posts = Like.objects.filter(
+                    user=current_user,
+                    content_type=ct,
+                    object_id__in=[post.id for post in page_obj]
+                ).values_list('object_id', flat=True)
+                liked_post_ids = set(liked_posts)
+
+            # 构建响应数据（使用修改后的字段名）
+            post_list = [{
+                "post_id": post.id,
+                "post_title": post.post_title,
+                "post_content": post.content[:200],  # 内容摘要
+                "poster_name": post.poster.username,
+                "poster_profile_url": post.poster.profile_url if post.poster.profile_url else "",
+                "view_count": post.views,
+                "like_count": post.annotated_like_count,  # 使用新字段名
+                "reply_count": post.annotated_reply_count,  # 使用新字段名
+                "publish_time": post.publish_time.strftime('%Y-%m-%d %H:%M:%S'),
+                "if_like": post.id in liked_post_ids
+            } for post in page_obj]
+
+            return self.success_response(
+                "获取成功",
+                post_list=post_list,
+                total_pages=paginator.num_pages,
+                current_page=page_index,
+                total_items=paginator.count
+            )
+
+        except ValueError:
+            return self.error_response(400, "参数类型错误")
+        except Exception as e:
+            return self.error_response(500, f"服务器错误: {str(e)}")
+        
+class CourseScoreListView(BaseCourseAPIView):
+    """课程评分分页接口"""
+    
+    DEFAULT_PAGE_SIZE = 20
+    MAX_PAGE_SIZE = 100
+
+    def get(self, request):
+        try:
+            # 参数解析
+            course_id = request.GET.get('course_id')
+            page_index = int(request.GET.get('page_index', 1))
+            page_size = int(request.GET.get('page_size', self.DEFAULT_PAGE_SIZE))
+
+            # 参数校验
+            if not course_id:
+                return self.error_response(400, "缺少课程ID参数")
+            if page_index < 1 or page_size < 1:
+                return self.error_response(400, "分页参数必须大于0")
+
+            # 验证课程存在性
+            try:
+                course = Course.objects.get(id=course_id)
+            except Course.DoesNotExist:
+                return self.error_response(404, "课程不存在")
+
+            # 构建基础查询
+            base_query = CourseReview.objects.filter(
+                course=course
+            ).select_related('user').order_by('-publish_time')
+
+            # 分页处理
+            paginator = Paginator(base_query, page_size)
+            try:
+                page_obj = paginator.page(page_index)
+            except EmptyPage:
+                return self.success_response(
+                    "无更多数据",
+                    score_list=[],
+                    total_pages=paginator.num_pages,
+                    current_page=page_index
+                )
+
+            # 构建响应数据
+            score_list = [{
+                "review_id": review.id,
+                "score": float(review.score),
+                "comment": review.comment,
+                "user_name": review.user.username,
+                "user_profile": review.user.profile_url if review.user.profile_url else "",
+                "publish_time": review.publish_time.strftime('%Y-%m-%d %H:%M:%S')
+            } for review in page_obj]
+
+            return self.success_response(
+                "获取成功",
+                score_list=score_list,
+                total_pages=paginator.num_pages,
+                current_page=page_index,
+                total_items=paginator.count
+            )
+
+        except ValueError:
+            return self.error_response(400, "参数类型错误")
+        except Exception as e:
+            return self.error_response(500, f"服务器错误: {str(e)}")
