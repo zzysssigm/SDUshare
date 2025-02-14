@@ -27,6 +27,9 @@ from ..utils.email_utils import (
     SEND_INTERVAL
 )
 
+# TODO: 有个地方注意一下，再次登录其他账户的时候需要自动调用logout，如果没登出不能登录其他账户
+
+
 class RegisterView(APIView):
     def get(self, request):
         """发送验证码接口"""

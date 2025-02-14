@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views, blacklist_views, article_views
+from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views
 
 from .views import CustomTokenRefreshView
 
@@ -27,4 +27,19 @@ urlpatterns = [
     path('api/article/detail', article_views.ArticleDetailView.as_view()),
     path('api/article/post_list', article_views.ArticlePostListView.as_view()),
     path('api/article/list', article_views.ArticleListView.as_view()),
+    # 帖子相关
+    path('api/post/article_post', post_reply_views.ArticlePostCreateView.as_view()),
+    path('api/post/course_post', post_reply_views.CoursePostCreateView.as_view()),
+    path('api/post/detail', post_reply_views.PostDetailView.as_view()),
+    path('api/post/reply_list', post_reply_views.PostReplyListView.as_view(), name='post-reply-list'),
+    
+    # (5) 删除帖子
+    path('api/post/delete', post_reply_views.PostDeleteView.as_view(), name='post-delete'),
+    
+    # (6) 创建回复
+    path('api/reply/create', post_reply_views.ReplyCreateView.as_view(), name='reply-create'),
+    path('api/reply/delete', post_reply_views.ReplyDeleteView.as_view(), name='reply-delete'),
+    
+    # (8) 获取回复详情
+    path('api/reply/detail', post_reply_views.ReplyDetailView.as_view(), name='reply-detail'),
 ]

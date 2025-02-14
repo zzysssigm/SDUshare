@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.conf import settings
 from mptt.models import MPTTModel, TreeForeignKey
 from django.core.cache import cache
+from django.db.models import F
 
 
 class BlacklistedAccessToken(models.Model):
@@ -314,6 +315,13 @@ class Post(models.Model):
         verbose_name="关联课程",
         db_index=True
     )
+    hot_score = models.FloatField(
+        default=0.0,
+        verbose_name="热度分",
+        db_index=True,
+        help_text="计算公式：浏览量×0.3 + 点赞数×0.7",
+        editable=False  # 防止人工修改
+    )
 
     class Meta:
         verbose_name = "帖子"
@@ -324,6 +332,16 @@ class Post(models.Model):
             models.Index(fields=['top', '-publish_time']),
             # 作者+时间联合索引
             models.Index(fields=['poster', '-publish_time']),
+            models.Index(fields=['article', '-publish_time']),
+            models.Index(fields=['course', '-publish_time']),
+            # 优化排序查询
+            models.Index(fields=['-views']),
+            models.Index(fields=['-hot_score']),
+            models.Index(fields=['-publish_time', 'block']),
+            # 热度分排序索引
+            models.Index(fields=['-hot_score', '-publish_time']),
+            # 联合查询优化
+            models.Index(fields=['block', '-hot_score']),
         ]
         get_latest_by = 'publish_time'
 
@@ -343,10 +361,15 @@ class Post(models.Model):
         """实时统计回复数（可缓存优化）"""
         return self.replies.count()
 
-    @property
-    def hot_score(self):
-        """热度分计算：浏览量*0.3 + 点赞数*0.7"""
-        return self.views * 0.3 + self.likes.count() * 0.7
+    # @property
+    # def hot_score(self):
+    #     """热度分计算：浏览量*0.3 + 点赞数*0.7"""
+    #     return self.views * 0.3 + self.likes.count() * 0.7
+    
+    def update_hot_scores():
+        Post.objects.update(
+            hot_score=0.3 * F('views') + 0.7 * F('like_count')
+        )
 
     def increment_views(self):
         """原子操作更新浏览量"""
@@ -384,8 +407,10 @@ class Reply(models.Model):
         verbose_name = "帖子回复"
         verbose_name_plural = "帖子回复"
         ordering = ['-reply_time']  # 默认按时间倒序
+        
         indexes = [
             models.Index(fields=['post', '-reply_time']),  # 按帖子+时间联合索引
+            models.Index(fields=['replier', '-reply_time']),  # 按用户+时间联合索引
         ]
         get_latest_by = 'reply_time'
 
