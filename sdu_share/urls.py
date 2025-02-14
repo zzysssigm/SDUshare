@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views
+from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views
 
 from .views import CustomTokenRefreshView
 
@@ -42,4 +42,15 @@ urlpatterns = [
     
     # (8) 获取回复详情
     path('api/reply/detail', post_reply_views.ReplyDetailView.as_view(), name='reply-detail'),
+    # 课程相关
+    path('api/course/create', 
+         course_views.CourseCreateView.as_view(), 
+         name='course-create'),
+    path('api/course/edit', 
+         course_views.CourseEditView.as_view(), 
+         name='course-edit'),
+    path('api/course/delete', 
+         course_views.CourseDeleteView.as_view(), 
+         name='course-delete'),
+
 ]

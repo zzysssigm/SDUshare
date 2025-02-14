@@ -334,7 +334,7 @@ class PostDeleteView(APIView):
                 post = Post.objects.get(id=post_id)
                 
                 # 权限验证：只有发帖人或管理员可以删除
-                if request.user != post.poster and not request.user.is_staff:
+                if request.user != post.poster and not request.user.master:
                     return Response({
                         'status': status.HTTP_403_FORBIDDEN,
                         'message': '无操作权限'
