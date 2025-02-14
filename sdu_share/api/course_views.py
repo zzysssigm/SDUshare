@@ -7,19 +7,19 @@ from decimal import Decimal, InvalidOperation
 from ..models import Course, Post, Reply, User
 
 class BaseCourseAPIView(APIView):
-    """基础响应处理类"""
-    @staticmethod
-    def success_response(message, course_id=None):
-        data = {
-            "status": status.HTTP_200_OK,
+    """统一响应基类（关键修复）"""
+    
+    def success_response(self, message, status_code=200, **kwargs):
+        """成功响应方法"""
+        response_data = {
+            "status": status_code,
             "message": message
         }
-        if course_id is not None:
-            data["course_id"] = course_id
-        return Response(data, status=data["status"])
+        response_data.update(kwargs)
+        return Response(response_data, status=status_code)
 
-    @staticmethod
-    def error_response(status_code, message):
+    def error_response(self, status_code, message):
+        """错误响应方法"""
         return Response({
             "status": status_code,
             "message": message
@@ -206,3 +206,336 @@ class CourseDeleteView(BaseCourseAPIView):
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "服务器内部错误"
             )
+        
+# course_views.py
+from decimal import Decimal, InvalidOperation
+from django.db import transaction
+from ..models import Course, CourseReview
+from django.core.exceptions import ObjectDoesNotExist
+
+class CourseRateView(BaseCourseAPIView):  # 直接继承BaseCourseAPIView
+    """课程评分接口（完整修复版）"""
+    
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                # 校验必填参数
+                course_id = request.data.get('course_id')
+                if not course_id:
+                    return self.error_response(400, "缺少课程ID参数")
+
+                # 获取课程实例
+                try:
+                    course = Course.objects.get(id=course_id)
+                except Course.DoesNotExist:
+                    return self.error_response(404, "课程不存在")
+
+                # 处理评分参数
+                try:
+                    raw_score = request.data['score']
+                    # 转换为Decimal并保留两位小数
+                    score = Decimal(str(raw_score)).quantize(Decimal('0.00'))
+                    if not (Decimal('1.00') <= score <= Decimal('5.00')):
+                        raise ValueError("评分超出范围")
+                except (KeyError, ValueError, InvalidOperation) as e:
+                    return self.error_response(400, f"评分错误: {str(e)}")
+
+                # 防止重复评价
+                if CourseReview.objects.filter(user=request.user, course=course).exists():
+                    return self.error_response(400, "您已评价过该课程")
+
+                # 创建评价记录
+                review = CourseReview.objects.create(
+                    user=request.user,
+                    course=course,
+                    score=score,
+                    comment=str(request.data.get('comment', '')).strip()[:2000]
+                )
+
+                # 正确调用响应方法
+                return self.success_response(
+                    message="评价提交成功",
+                    status_code=status.HTTP_201_CREATED,
+                    review_id=review.id,
+                    score=float(review.score),
+                    comment=review.comment
+                )
+
+        except Exception as e:
+            return self.error_response(500, f"服务器内部错误: {str(e)}")
+
+class CourseEditRatingView(BaseCourseAPIView):
+    """课程评分编辑接口（完整版）"""
+    
+    def post(self, request):
+        try:
+            # 获取必要参数
+            course_id = request.data.get('course_id')
+            if not course_id:
+                return self.error_response(400, "缺少课程ID参数")
+
+            # 获取评价记录
+            try:
+                review = CourseReview.objects.get(
+                    user=request.user,
+                    course_id=course_id
+                )
+            except CourseReview.DoesNotExist:
+                return self.error_response(404, "尚未对该课程评分")
+
+            update_data = {}
+            
+            # 处理评分更新
+            if 'score' in request.data:
+                try:
+                    raw_score = request.data['score']
+                    new_score = Decimal(str(raw_score)).quantize(Decimal('0.00'))
+                    if not (1 <= new_score <= 5):
+                        raise ValueError("评分超出有效范围")
+                    update_data['score'] = new_score
+                except (ValueError, InvalidOperation) as e:
+                    return self.error_response(400, f"评分错误: {str(e)}")
+
+            # 处理评论更新
+            if 'comment' in request.data:
+                cleaned_comment = str(request.data['comment']).strip()
+                update_data['comment'] = cleaned_comment[:2000]
+
+            # 执行更新
+            if update_data:
+                for key, value in update_data.items():
+                    setattr(review, key, value)
+                review.save()
+                return self.success_response(
+                    "评价更新成功",
+                    score=float(review.score),
+                    comment=review.comment
+                )
+            else:
+                return self.error_response(400, "未提供有效更新字段")
+
+        except Exception as e:
+            return self.error_response(500, f"服务器内部错误: {str(e)}")
+        
+
+class UserEvaluationView(BaseCourseAPIView):
+    """用户评价查询接口（完整版）"""
+    
+    def post(self, request):
+        try:
+            # 参数校验
+            user_id = request.data.get('user_id')
+            course_id = request.data.get('course_id')
+            if not all([user_id, course_id]):
+                return self.error_response(400, "缺少用户ID或课程ID")
+
+            # 权限验证
+            if int(user_id) != request.user.id:
+                return self.error_response(401, "无权查看他人评价")
+
+            # 查询评价
+            try:
+                review = CourseReview.objects.get(
+                    user_id=user_id,
+                    course_id=course_id
+                )
+                return self.success_response(
+                    "查询成功",
+                    score=float(review.score),
+                    comment=review.comment
+                )
+            except CourseReview.DoesNotExist:
+                return self.error_response(404, "未找到评价记录")
+
+        except ValueError:
+            return self.error_response(400, "用户ID格式错误")
+        except Exception as e:
+            return self.error_response(500, f"服务器错误: {str(e)}")
+        
+from django.db.models import Avg, Count
+from django.core.paginator import Paginator, EmptyPage
+
+class CourseDetailView(BaseCourseAPIView):
+    """课程详情接口（修复字段冲突版）"""
+    
+    def get(self, request):
+        try:
+            course_id = request.GET.get('course_id')
+            if not course_id:
+                return self.error_response(400, "缺少课程ID参数")
+
+            try:
+                # 修改annotate字段名称避免冲突
+                course = Course.objects.prefetch_related('relative_articles') \
+                    .annotate(
+                        calculated_avg=Avg('reviews__score'),
+                        review_count=Count('reviews')
+                    ).get(id=course_id)
+            except Course.DoesNotExist:
+                return self.error_response(404, "课程不存在")
+
+            # 处理校区信息
+            campus, college = (course.college.split('｜') 
+                              if '｜' in course.college 
+                              else ('', course.college))
+
+            # 构建响应数据
+            detail_data = {
+                "course_id": course.id,
+                "course_name": course.course_name,
+                "course_type": course.get_course_type_display(),
+                "college": college,
+                "campus": campus,
+                "credits": float(course.credits),
+                "course_teacher": course.course_teacher,
+                "course_method": course.get_course_method_display(),
+                "assessment_method": course.assessment_method,
+                "score": float(course.calculated_avg) if course.calculated_avg else 0.0,
+                "all_score": float(course.calculated_avg * course.review_count) if course.calculated_avg else 0.0,
+                "all_people": course.review_count,
+                "relative_articles": [
+                    {"article_id": art.id, "title": art.title[:50]}
+                    for art in course.relative_articles.all()
+                ],
+                "publish_time": course.publish_time.strftime("%Y-%m-%d %H:%M:%S")
+            }
+
+            return self.success_response(
+                "获取详情成功",
+                course_detail=detail_data
+            )
+
+        except ValueError:
+            return self.error_response(400, "课程ID格式错误")
+        except Exception as e:
+            return self.error_response(500, f"服务器错误: {str(e)}")
+        
+class CourseListView(BaseCourseAPIView):
+    """课程分页列表接口（修复字段冲突版）"""
+    
+    DEFAULT_PAGE_SIZE = 20
+    MAX_PAGE_SIZE = 100
+
+    def get(self, request):
+        try:
+            # 解析分页参数
+            page_index = int(request.GET.get('page_index', 1))
+            page_size = int(request.GET.get('page_size', self.DEFAULT_PAGE_SIZE))
+
+            # 参数有效性验证
+            if page_index < 1 or page_size < 1:
+                raise ValueError()
+            page_size = min(page_size, self.MAX_PAGE_SIZE)
+
+            # 修改annotate字段名称
+            queryset = Course.objects.annotate(
+                calculated_avg=Avg('reviews__score'),
+                review_count=Count('reviews')
+            ).order_by('-publish_time')
+
+            paginator = Paginator(queryset, page_size)
+            
+            try:
+                page = paginator.page(page_index)
+            except EmptyPage:
+                return self.error_response(400, "页码超出范围")
+
+            # 构建响应数据
+            course_list = []
+            for course in page.object_list:
+                campus, college = (course.college.split('｜') 
+                                  if '｜' in course.college 
+                                  else ('', course.college))
+                
+                course_list.append({
+                    "course_id": course.id,
+                    "course_name": course.course_name[:50],
+                    "course_type": course.get_course_type_display(),
+                    "college": college,
+                    "credits": float(course.credits),
+                    "course_teacher": course.course_teacher[:20],
+                    "course_method": course.get_course_method_display(),
+                    "assessment_method": course.assessment_method[:100],
+                    "score": float(course.calculated_avg) if course.calculated_avg else 0.0,
+                    "all_score": float(course.calculated_avg * course.review_count) if course.calculated_avg else 0.0,
+                    "all_people": course.review_count,
+                    "publish_time": course.publish_time.strftime("%Y-%m-%d")
+                })
+
+            return self.success_response(
+                "获取列表成功",
+                course_list=course_list,
+                total_pages=paginator.num_pages,
+                current_page=page.number,
+                total_items=paginator.count
+            )
+
+        except ValueError:
+            return self.error_response(400, "分页参数格式错误")
+        except Exception as e:
+            return self.error_response(500, f"服务器错误: {str(e)}")
+        
+class CourseListView(BaseCourseAPIView):
+    """课程分页列表接口（修复annotate字段冲突）"""
+    
+    DEFAULT_PAGE_SIZE = 20
+    MAX_PAGE_SIZE = 100
+
+    def get(self, request):
+        try:
+            # 解析分页参数
+            page_index = int(request.GET.get('page_index', 1))
+            page_size = int(request.GET.get('page_size', self.DEFAULT_PAGE_SIZE))
+
+            # 验证参数有效性
+            if page_index < 1 or page_size < 1:
+                raise ValueError()
+            page_size = min(page_size, self.MAX_PAGE_SIZE)
+
+            # 修改annotate字段名称避免与模型属性冲突
+            queryset = Course.objects.annotate(
+                calculated_avg=Avg('reviews__score'),
+                review_count=Count('reviews')
+            ).order_by('-publish_time')
+
+            paginator = Paginator(queryset, page_size)
+            
+            try:
+                page = paginator.page(page_index)
+            except EmptyPage:
+                return self.error_response(400, "页码超出范围")
+
+            # 构建列表数据
+            course_list = []
+            for course in page.object_list:
+                # 使用模型自身的属性方法
+                campus, college = course.college.split('｜') if '｜' in course.college else ('', course.college)
+                
+                course_list.append({
+                    "course_id": course.id,
+                    "course_name": course.course_name[:50],
+                    "course_type": course.get_course_type_display(),
+                    "college": college,
+                    "credits": float(course.credits),
+                    "course_teacher": course.course_teacher[:20],
+                    "course_method": course.get_course_method_display(),
+                    "assessment_method": course.assessment_method[:100],
+                    # 使用模型属性替代annotate字段
+                    "score": float(course.average_score),
+                    "all_score": float(course.average_score * course.total_reviews),
+                    "all_people": course.total_reviews,
+                    "publish_time": course.publish_time.strftime("%Y-%m-%d")
+                })
+
+            return self.success_response(
+                "获取列表成功",
+                course_list=course_list,
+                total_pages=paginator.num_pages,
+                current_page=page.number,
+                total_items=paginator.count
+            )
+
+        except ValueError:
+            return self.error_response(400, "分页参数格式错误")
+        except Exception as e:
+            return self.error_response(500, f"服务器错误: {str(e)}")

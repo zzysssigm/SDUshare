@@ -52,5 +52,12 @@ urlpatterns = [
     path('api/course/delete', 
          course_views.CourseDeleteView.as_view(), 
          name='course-delete'),
+    # 课程评论评分
+    path('api/course/rate', course_views.CourseRateView.as_view(), name='course-rate'),
+    path('api/course/edit_rating', course_views.CourseEditRatingView.as_view(), name='edit-rating'),
+    path('api/course/user_evaluation', course_views.UserEvaluationView.as_view(), name='user-evaluation'),
+
+    path('api/course/detail', course_views.CourseDetailView.as_view(), name='course-detail'),
+    path('api/course/list', course_views.CourseListView.as_view(), name='course-list'),
 
 ]
