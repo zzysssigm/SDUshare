@@ -173,9 +173,9 @@ AUTH_USER_MODEL = 'sdu_share.User'
 # restframework相关配置
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
         'sdu_share.authentication.CustomJWTAuthentication'
     ],
+    'EXCEPTION_HANDLER': 'sdu_share.exceptions.custom_exception_handler'  # 新增配置
 }
 
 SIMPLE_JWT = {
