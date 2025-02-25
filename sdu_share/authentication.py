@@ -1,4 +1,4 @@
-# 修改报错格式
+# authentication.py
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from .models import BlacklistedAccessToken
@@ -9,18 +9,15 @@ class CustomJWTAuthentication(JWTAuthentication):
         # 获取 Authorization 头
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         
-        # 检查是否存在 Authorization 头
+        # 关键修改：无Authorization头时静默返回None
         if not auth_header:
-            raise AuthenticationFailed(
-                detail="缺少Authorization头",  # 关键修改：添加detail参数
-                code='missing_auth_header'
-            )
+            return None  # 不再抛出异常
 
         # 验证头格式
         auth_parts = auth_header.split()
         if len(auth_parts) != 2 or auth_parts[0].lower() != 'bearer':
             raise AuthenticationFailed(
-                detail="Authorization头格式应为 Bearer <token>",  # 关键修改
+                detail="Authorization头格式应为 Bearer <token>",
                 code='invalid_header'
             )
 
@@ -28,12 +25,9 @@ class CustomJWTAuthentication(JWTAuthentication):
 
         try:
             # 调用父类验证逻辑
-            auth_result = super().authenticate(request)  # 返回 (user, token) 或 None
+            auth_result = super().authenticate(request)
             if not auth_result:
-                raise AuthenticationFailed(
-                    detail="无效用户凭证",  # 关键修改
-                    code='authentication_failed'
-                )
+                return None  # Token验证失败时不强制阻断
 
             user, token = auth_result
 
@@ -44,28 +38,26 @@ class CustomJWTAuthentication(JWTAuthentication):
             # 检查黑名单
             if BlacklistedAccessToken.objects.filter(jti=jti).exists():
                 raise AuthenticationFailed(
-                    detail="Token已被拉黑",  # 关键修改
+                    detail="Token已被拉黑",
                     code='token_blacklisted'
                 )
 
             # 验证是否为最新jti
             if user.current_access_jti != jti:
                 raise AuthenticationFailed(
-                    detail="Token已过期",  # 关键修改
+                    detail="Token已过期",
                     code='stale_token'
                 )
 
             return (user, token)
 
         except TokenError as e:
-            # 处理JWT验证错误
             raise AuthenticationFailed(
-                detail=f"Token无效: {str(e)}",  # 关键修改
+                detail=f"Token无效: {str(e)}",
                 code='token_invalid'
             )
         except Exception as e:
-            # 处理其他意外错误
             raise AuthenticationFailed(
-                detail=str(e),  # 关键修改
+                detail=str(e),
                 code='authentication_error'
             )

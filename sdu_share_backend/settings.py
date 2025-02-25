@@ -40,18 +40,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'sdu_share',
+    # 'sdu_share',
+    'sdu_share.apps.SduShareConfig', 
     'mptt',
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
-     'rest_framework_simplejwt.token_blacklist',
+    'rest_framework_simplejwt.token_blacklist',
 ]
 
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', 
-    'sdu_share.middleware.JWTAuthenticationMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -60,6 +60,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+WSGI_APPLICATION = 'sdu_share_backend.wsgi.application'  # 与项目目录名一致
+ROOT_URLCONF = 'sdu_share_backend.urls'  # 正确指向URL配置
 
 # 跨域设置
 # 仅允许 API 路由跨域
