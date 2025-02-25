@@ -52,6 +52,13 @@ class EmailVerificationCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES)
+    class Meta:
+        indexes = [
+            # 复合索引优化验证码查询
+            models.Index(fields=['email', 'purpose'], name='email_purpose_idx'),
+            # 过期时间索引
+            models.Index(fields=['expires_at'], name='expiry_idx')
+        ]
 
 class BlockList(models.Model):
     from_user = models.ForeignKey(User, related_name='blocking', on_delete=models.CASCADE)

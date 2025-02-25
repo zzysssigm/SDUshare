@@ -189,8 +189,19 @@ SIMPLE_JWT = {
 
 APPEND_SLASH = False  # 关闭自动添加斜杠
 
-# Celery配置
-# CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Redis作为消息代理
-# CELERY_RESULT_BACKEND = 'django-db'             # 使用Django数据库存储结果
-# CELERY_ACCEPT_CONTENT = ['json']
-# CELERY_TASK_SERIALIZER = 'json'
+# settings.py
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # 根据实际配置
+CELERY_BEAT_SCHEDULE = {
+    'update-hot-scores': {
+        'task': 'yourapp.tasks.update_hot_scores',
+        'schedule': 600,  # 每10分钟
+    },
+    'clean-expired-data': {
+        'task': 'yourapp.tasks.clean_expired_data',
+        'schedule': 86400,  # 每天
+    },
+    'update-tag-hotness': {
+        'task': 'yourapp.tasks.update_tag_hotness',
+        'schedule': 3600,  # 每小时
+    }
+}
