@@ -2,7 +2,7 @@
 
 
 
-# API：整合修订（1.4）
+# API：整合修订（1.4.3）
 
 - 统一了命名规范，并划分了对应板块；
 - 注册时，增加了校区、专业等选填项；
@@ -13,7 +13,12 @@
 - 添加了获取某用户对某课程评价的api；
 - 创建完Article/Post/Reply之后会返回对应id，方便跳转；
 - 给Post类也加一个收藏功能，毕竟提问的帖子也需要收藏一下
-
+- 1.4.1修订：修正了**获取某个用户对某个课程的评价**中请求参数的错误；为**创建课程**新增了campus字段表示校区，college的备注更改为学院
+- 1.4.2修订：添加**根据课程id分页获取对课程评价评分列表**的api；创建文章时添加**资源链接**，**封面链接**，**文章描述**的字段
+- 1.4.3修订：移除了Post的tags，感觉没用
+- 1.4.3修订：课程评价与评分单开一个了CourseReview类，后续重构时考虑使其继承post类，或者单开一个关联reply；
+- 1.4.3修订：点赞板块的content_type改成int类型了，考虑到比较高频，还是int性能好一点
+- 1.4.3修订：点赞操作的user_id参数没必要，可以直接从header的access token获取
 
 
 Todo：
@@ -30,22 +35,26 @@ Todo：
 
 ```python
 # 继承AbstractUser, 自带id, username和password
+
 class User(AbstractUser):
-    email_code = models.IntegerField(null=True, blank=True)  # 邮箱验证码
-    reputation = models.IntegerField(default=100)  # 信誉值
-    all_likes = models.IntegerField(default=0)  # 收获的总点赞数
-    all_views = models.IntegerField(default=0)  # 收获的总浏览量
-    influence = models.IntegerField(default=0)  # 影响力因子
-    master = models.BooleanField(default=False)  # 是否是管理员
-    block = models.BooleanField(default=False)  # 是否被封禁
-    block_end_time = models.DateTimeField(null=True, blank=True)  # 封禁结束时间
-    blocklist = models.ManyToManyField('self', symmetrical=False, related_name='blocked_by', through='BlockList')  # 黑名单
-    profile_url = models.CharField(max_length=255, null=True, blank=True)  # 头像的地址
-    
-    # 新增的字段：校区、学院、专业
-    campus = models.CharField(max_length=255, null=True, blank=True)  # 校区（选填）
-    college = models.CharField(max_length=255, null=True, blank=True)  # 学院（选填）
-    major = models.CharField(max_length=255, null=True, blank=True)  # 专业（选填）
+	email = models.EmailField(unique=True)  # 确保email唯一
+    email_code = models.IntegerField(null=True, blank=True) # 验证码
+    reputation = models.IntegerField(default=100) # 信誉分
+    all_likes = models.IntegerField(default=0) # 获得的总点赞数
+    all_views = models.IntegerField(default=0) # 获得的总浏览量
+    all_articles = models.IntegerField(default=0) # 发布的总文章数
+    all_posts = models.IntegerField(default=0) # 发布的总帖子数
+    all_replys = models.IntegerField(default=0) # 发布的总回复数
+    influence = models.IntegerField(default=0) # 影响力因子
+    master = models.BooleanField(default=False) # 是否是管理员
+    super_master = models.BooleanField(default=False) # 是否是超级管理员
+    block = models.BooleanField(default=False) # 是否处于封禁状态
+    block_end_time = models.DateTimeField(null=True, blank=True) # 封禁结束时间
+    blocklist = models.ManyToManyField('self', symmetrical=False, related_name='blocked_by', through='BlockList') #与blocklist关联
+    profile_url = models.CharField(max_length=255, null=True, blank=True) # 头像url
+    campus = models.CharField(max_length=255, null=True, blank=True) # 校区
+    college = models.CharField(max_length=255, null=True, blank=True) # 学院
+    major = models.CharField(max_length=255, null=True, blank=True) # 专业
 
     def __str__(self):
         return self.username
@@ -70,8 +79,8 @@ class User(AbstractUser):
 | `pass_word`  | string | 是   | 用户密码。                                                  |
 | `email`      | string | 是   | 用户邮箱，需唯一。                                          |
 | `email_code` | string | 是   | 邮箱验证码，通过 `/register?send_code=1&email=email` 获取。 |
-| `campus`     | string | 否   | 校区信息，例如：南区、北区等。                              |
-| `college`    | string | 否   | 学院信息，例如：计算机学院、数学学院等。                   |
+| `campus`     | string | 否   | 校区信息，例如：青岛，兴隆山，千佛山等。                    |
+| `college`    | string | 否   | 学院信息，例如：计算机科学与技术学院、数学学院等。          |
 | `major`      | string | 否   | 专业信息，例如：计算机科学与技术、软件工程等。              |
 
 **响应参数（注：之后的响应参数，如无特殊说明均使用status+message的形式）：**
@@ -279,7 +288,6 @@ class User(AbstractUser):
 | 参数名  | 类型   | 必填 | 描述           |
 | ------- | ------ | ---- | -------------- |
 | `email` | string | 是   | 目标邮箱地址。 |
-| `pass_word` | string | 是 | 原密码。 |
 | `new_pass_word` | string | 是 | 新密码。 |
 | `email_code` | string | 是   | 重置密码的验证码，通过 `/reset_password?send_code=1&email=email` 获取。 |
 
@@ -380,7 +388,7 @@ class BlockList(models.Model):
 
 #### **url：`/index/blocklist`**
 
-**GET `/blocklist`**
+**GET `/blocklist?user_id=user_id`**
 
 **描述：**  
 此接口用于获取当前用户的黑名单列表。返回拉黑的用户信息，包括用户名、ID、头像等。
@@ -421,7 +429,6 @@ class BlockList(models.Model):
 
 ```python
 class Article(models.Model):
-    # 文章类型选项
     ARTICLE_TYPE_CHOICES = [
         ('original', '原创'),
         ('repost', '转载'),
@@ -431,14 +438,16 @@ class Article(models.Model):
     article_title = models.CharField(max_length=255, verbose_name="文章标题")
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='articles', verbose_name="作者")
     content = models.TextField(verbose_name="内容")
-    tags = models.CharField(max_length=255, verbose_name="标签")
-    stars = models.IntegerField(default=0, verbose_name="收藏数")
+    tags = models.ManyToManyField('Tag', related_name='articles', verbose_name="标签")
+    stars = models.PositiveIntegerField(default=0, verbose_name="收藏数")
     likes = GenericRelation(Like, verbose_name="点赞")
-    views = models.IntegerField(default=0, verbose_name="浏览量")
-    block = models.BooleanField(default=False, verbose_name="是否屏蔽")
+    views = models.PositiveIntegerField(default=0, verbose_name="浏览量")
+    block = models.BooleanField(default=False, db_index=True, verbose_name="是否屏蔽")
     publish_time = models.DateTimeField(auto_now_add=True, verbose_name="发布时间")
-    origin_link = models.CharField(max_length=255, verbose_name="原文链接")
-    source_url = models.CharField(max_length=255, verbose_name="来源URL")
+    origin_link = models.CharField(max_length=255, blank=True, null=True, verbose_name="原文链接")
+    resource_link = models.CharField(max_length=255, verbose_name="资源URL")
+    article_summary = models.CharField(max_length=255, verbose_name="文章简介")
+    cover_link = models.CharField(max_length=255, verbose_name="封面URL")
     article_type = models.CharField(
         max_length=10,
         choices=ARTICLE_TYPE_CHOICES,
@@ -452,7 +461,16 @@ class Article(models.Model):
     class Meta:
         verbose_name = "文章"
         verbose_name_plural = "文章"
-        ordering = ['-publish_time']  # 按发布时间倒序排列
+        indexes = [
+            models.Index(fields=['-publish_time']),  # 显式定义索引
+        ]
+        ordering = ['-publish_time']
+
+class Tag(models.Model):
+    name = models.CharField(max_length=50, unique=True, verbose_name="标签名")
+    
+    def __str__(self):
+        return self.name
 ```
 
 ### （1）创建article
@@ -467,10 +485,12 @@ class Article(models.Model):
 | ------- | ------ | ---- | -------------- |
 | `article_title` | string | 是   | 文章标题。 |
 | `content` | string | 是   | 文章内容。 |
-| `tags` | string | 否   | 文章标签。以逗号分隔。 |
-| `author_id` | int | 是   | 作者的ID。 |
+| `tags` | string | 否   | 文章标签。以逗号分隔。 |                 |
 | `article_type` | string | 否   | 文章类型：原创或转载。|
 | `origin_link` | string | 否   | 转载时的原文链接。 |
+| `resource_link` | string | 否 | 资源链接 |
+| `cover_link` | string | 否 | 封面链接 |
+| `article_summary` | string | 否 | 文章简介 |
 
 **响应参数：**
 
@@ -582,11 +602,11 @@ class Article(models.Model):
 
 ---
 
-### *（5）根据id分页获取Article下的Post列表：需要更新tags筛选
+### （5）根据id分页获取Article下的Post列表
 
 #### **url：`/index/article/post_list`**
 
-**GET `/article/post_list?post_id=post_id&page_index=page_index&page_size=page_size`**
+**GET `/article/post_list?article_id=aticle_id&page_index=page_index&page_size=page_size`**
 
 **描述：**
 此接口用于获取指定文章（通过文章ID）下，按分页要求返回的Post列表。
@@ -595,7 +615,7 @@ class Article(models.Model):
 
 | 参数名      | 类型   | 必填 | 描述           |
 | ----------- | ------ | ---- | -------------- |
-| `post_id`| int    | 是   | 文章ID。       |
+| `article_id`| int    | 是   | 文章ID。       |
 | `page_index`| int    | 否   | 第几页，默认为第一页。 |
 | `page_size` | int    | 否   | 每页显示的Post数量，默认为20。 |
 
@@ -627,47 +647,50 @@ class Article(models.Model):
 | `if_like`            | bool   | 是否已经点赞过。               |
 
 ---
+### **（6）分页获取article列表（支持按时间/收藏/浏览量等排序，支持tag筛选）**
 
-### （6）分页获取article列表
+忘记做like了筛选了，是不是合并成热度会好一点
 
 #### **url：`/index/article/list`**
 
-**GET `/article/list?page_index=page_index&page_size=page_size`**
-
-**描述：**
-此接口用于提交分页要求，并获取article列表的对应页。
+**GET `/article/list?page_index=1&page_size=20&tags=1,2&sort=time`**
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述           |
-| ----------- | ------ | ---- | -------------- |
-| `page_index`| int    | 否   | 第几页，默认为第一页。 |
-| `page_size` | int    | 否   | 每页显示的文章数量，默认为20。 |
+| 参数名      | 类型   | 必填 | 描述/可选值                       |
+|------------|--------|------|----------------------------------|
+| page_index | int    | 否   | 页码，默认1                       |
+| page_size  | int    | 否   | 每页数量，默认20                 |
+| tags       | string | 否   | 逗号分隔的标签ID                 |
+| sort       | string | 否   | 排序方式：time（默认）/star/view |
 
 **响应参数：**
 
-| 参数名      | 类型   | 描述     |
-| ----------- | ------ | -------- |
-| `status`    | int    | 状态码。 |
-| `message`   | string | 返回信息。 |
-| `article_list` | array | 文章列表。 |
+| 参数名        | 类型   | 描述                  |
+|-------------|--------|---------------------|
+| status      | int    | 状态码               |
+| message     | string | 返回信息              |
+| article_list| array  | 文章数据              |
+| total_pages | int    | 总页数               |
+| current_page| int    | 当前页码              |
 
-- **200 OK**: 获取文章列表成功。
-- **500 Internal Server Error**: 服务器内部错误。
+**文章对象结构：**
 
-若获取成功，则`article_list`中的每个文章对象的内容如下：
+| 字段名              | 类型   | 描述         |
+|--------------------|--------|-------------|
+| article_id         | int    | 文章ID       |
+| article_title      | string | 文章标题      |
+| author_name        | string | 作者名称      |
+| author_profile_url | string | 作者头像URL   |
+| star_count         | int    | 收藏数        |
+| view_count         | int    | 浏览量        |
+| like_count         | int    | 点赞数        |
+| tags               | array  | 标签名称列表   |
+| publish_time       | string | 发布时间      |
+| article_summary    | string | 文章简介      |
+| cover_link         | string | 封面URL      |
+| article_type       | string | 类型（原创/转载）|
 
-| 参数名            | 类型   | 描述                             |
-| ----------------- | ------ | -------------------------------- |
-| `article_id`      | int    | 文章ID。                         |
-| `article_title`   | string | 文章标题。                       |
-| `author_name`     | string | 作者名称。                       |
-| `author_profile_url` | string | 作者头像的URL。                  |
-| `star_count`      | int    | 文章的收藏数。                   |
-| `view_count`      | int    | 文章的浏览量。                   |
-| `like_count`      | int    | 文章的点赞数。                   |
-| `tags`            | array  | 文章标签。                       |
-| `publish_time`    | time   | 文章发布时间。                   |
 
 ---
 
@@ -735,6 +758,7 @@ class Reply(models.Model):
 
 | 参数名  | 类型   | 必填 | 描述           |
 | ------- | ------ | ---- | -------------- |
+| `article_id` | int | 是   | 文章id。 |
 | `post_title` | string | 否   | 帖子标题。 |
 | `post_content` | string | 是   | 帖子内容。 |
 
@@ -821,7 +845,6 @@ class Reply(models.Model):
 | `view_count` | int  | 帖子的浏览量。 | 
 | `like_count` | int  | 帖子的点赞数。 |
 | `reply_count` | int  | 帖子的回复数。 |
-| `tags` | array  | 帖子的标签。 |
 | `publish_time` | time  | 帖子的发布时间。 |
 
 ---
@@ -1017,7 +1040,7 @@ class Course(models.Model):
     publish_time = models.DateTimeField(auto_now_add=True)
 ```
 
-**Score类如下：**
+**Score类如下：**//需要加上comment（内容），publish_time等内容做单独一个类
 
 ```python
 class Score(models.Model):
@@ -1048,13 +1071,20 @@ class Score(models.Model):
 | ------- | ------ | ---- | -------------- |
 | `course_name` | string | 是   | 课程名。 |
 | `course_type` | string | 是   | 课程类型（必修、选修、限选）。 |
-| `college` | string | 是   | 开设大学。 |
+| `college` | string | 是   | 开设该课程的学院。 |
+| `campus` | string | 是   | 开设该课程的校区。 |
 | `credits` | decimal | 是   | 课程学分。 |
 | `course_teacher` | string | 是   | 课程教师。 |
 | `course_method` | string | 是   | 教学方式（线上、线下、混合）。 |
 | `assessment_method` | string | 是   | 考核方式。 |
 
 **响应参数：**
+
+| 参数名  | 类型    | 描述           |
+| ------- | ------ | ------------------ |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `course_id` | int | 课程id。 |
 
 - **200 OK**: 课程创建成功。
 - **400 Bad Request**: 请求参数不完整或格式错误。
@@ -1167,6 +1197,7 @@ class Score(models.Model):
 ---
 
 ### （6）获取某个用户对某个课程的评价
+// 这个地方其实应该改成get吧？算了之后再改吧
 
 #### **url：`/index/course/user_evaluation`**
 
@@ -1181,10 +1212,14 @@ class Score(models.Model):
 | ------- | ------ | ---- | -------------- |
 | `user_id` | int | 是   | 用户ID。 |
 | `course_id` | int | 是   | 课程ID。 |
-| `score` | decimal | 否   | 修改后的评分（0.00 到 5.00）。 |
-| `comment` | string | 否   | 修改后的评价内容。 |
-
 **响应参数：**
+
+| 参数名   | 类型 | 描述     |
+| -------- | ---- | -------- |
+| `status` | int  | 状态码。 |
+| `message` | string  | 返回信息。 |
+| `score` | decimal | 用户评分（0.00 到 5.00）。 |
+| `comment` | string | 用户的评价内容。 |
 
 - **200 OK**: 评分和评价修改成功。
 - **401 Unauthorized**: 用户未登陆或无权获得他人评价；
@@ -1222,7 +1257,8 @@ class Score(models.Model):
 | `course_id` | int  | 课程id。 |
 | `course_name` | string  | 课程名。 |
 | `course_type` | string  | 课程类型（必修、选修、限选）。 |
-| `college` | string  | 开设大学。 |
+| `college` | string  | 专业开设学院。 |
+| `campus` | string | 专业开设校区。 |
 | `credits` | decimal  | 学分。 |
 | `course_teacher` | string  | 教师名称。 |
 | `course_method` | string  | 教学方式（线上、线下、混合）。 |
@@ -1239,7 +1275,7 @@ class Score(models.Model):
 
 #### **url：`/index/course/post_list`**
 
-**GET `/course/post_list?id=id&page_index=page_index&page_size=page_size`**
+**GET `/course/post_list?course_id=course_id&page_index=page_index&page_size=page_size`**
 
 **描述：**
 此接口用于获取指定课程（通过课程ID）下，按分页要求返回的Post列表。
@@ -1248,7 +1284,7 @@ class Score(models.Model):
 
 | 参数名      | 类型   | 必填 | 描述           |
 | ----------- | ------ | ---- | -------------- |
-| `course_id`        | int    | 是   | 课程ID。       |
+| `course_id` | int    | 是   | 课程ID。       |
 | `page_index`| int    | 否   | 第几页，默认为第一页。 |
 | `page_size` | int    | 否   | 每页显示的Post数量，默认为20。 |
 
@@ -1280,7 +1316,39 @@ class Score(models.Model):
 
 ---
 
-### （9）分页获取course列表
+### （9）根据id分页获取Course下的评分列表
+
+#### **url：`/index/course/score_list`**
+
+**GET `/course/score_list?course_id=course_id&page_index=page_index&page_size=page_size`**
+
+**描述：**
+此接口用于获取指定课程（通过课程ID）下，按分页要求返回的socre_list列表，即coursereview。
+
+**请求参数：**
+
+| 参数名      | 类型   | 必填 | 描述           |
+| ----------- | ------ | ---- | -------------- |
+| `course_id` | int    | 是   | 课程ID。       |
+| `page_index`| int    | 否   | 第几页，默认为第一页。 |
+| `page_size` | int    | 否   | 每页显示的post数量，默认为20。 |
+
+**响应参数：**
+
+| 参数名   | 类型   | 描述     |
+| -------- | ------ | -------- |
+| `status` | int    | 状态码。 |
+| `message`| string | 返回信息。 |
+| `score_list` | array | score列表。 |
+
+- **200 OK**: 获取Score列表成功。
+- **500 Internal Server Error**: 服务器内部错误。
+
+若获取成功，则`score_list`中的每个Post对象的内容如下：
+
+//你来补全
+
+### （10）分页获取course列表
 
 #### **url：`/index/course/list`**
 
@@ -1314,7 +1382,7 @@ class Score(models.Model):
 | `course_id` | int  | 课程id。 |
 | `course_name` | string  | 课程名。 |
 | `course_type` | string  | 课程类型（必修、选修、限选）。 |
-| `college` | string  | 开设大学。 |
+| `college` | string  | 开设学院。 |
 | `credits` | decimal  | 学分。 |
 | `course_teacher` | string  | 教师名称。 |
 | `course_method` | string  | 教学方式（线上、线下、混合）。 |
@@ -1782,8 +1850,7 @@ class Like(models.Model):
 
 | 参数名         | 类型   | 必填 | 描述                                          |
 | -------------- | ------ | ---- | ----------------------------------- |
-| `user_id`      | int    | 是   | 点赞的用户ID。                                |
-| `content_type` | string | 是   | 内容类型，值为 `article`、`post` 或 `reply`。 |
+| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
 | `content_id`   | int    | 是   | 文章、帖子或回复的ID。                        |
 
 **响应参数：**
@@ -1815,7 +1882,7 @@ class Like(models.Model):
 | 参数名         | 类型   | 必填 | 描述                                          |
 | -------------- | ------ | ---- | --------------------------------------------- |
 | `user_id`      | int    | 是   | 取消点赞的用户ID。                            |
-| `content_type` | string | 是   | 内容类型，值为 `article`、`post` 或 `reply`。 |
+| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
 | `content_id`   | int    | 是   | 文章、帖子或回复的ID。                  |
 
 **响应参数：**
@@ -1832,20 +1899,20 @@ class Like(models.Model):
 - **404 Not Found**: 找不到对应的内容。
 - **500 Internal Server Error**: 服务器内部错误。
 
-#### （3）获取内容的点赞数
+### （3）获取内容的点赞数
 
 #### **url：`index/like/count`**
 
-**GET `/like/count`**
+**GET `/like/count?content_type=content_type&content_id=content_id`**
 
 **描述：**
- 此接口用于获取文章、帖子或回复的点赞数。
+ 此接口用于获取文章、帖子或回复的点赞数。无需身份令牌。
 
 **请求参数：**
 
 | 参数名         | 类型   | 必填 | 描述                                          |
 | -------------- | ------ | ---- | --------------------------------------------- |
-| `content_type` | string | 是   | 内容类型，值为 `article`、`post` 或 `reply`。 |
+| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
 | `content_id`   | int    | 是   | 文章、帖子或回复的ID。                        |
 
 **响应参数：**
@@ -1866,7 +1933,7 @@ class Like(models.Model):
 
 #### **url：`index/like/user`**
 
-**GET `/like/user`**
+**GET `/like/user?user_id=user_id&page_size=page_size&page_index=page_index`**
 
 **描述：**
  此接口用于获取某个用户点赞过的所有内容列表。
@@ -1876,8 +1943,8 @@ class Like(models.Model):
 | 参数名    | 类型 | 必填 | 描述                           |
 | --------- | ---- | ---- | ------------------------------ |
 | `user_id` | int  | 是   | 用户ID。                       |
-| `limit`   | int  | 否   | 每页返回的内容数量，默认为10。 |
-| `offset`  | int  | 否   | 分页偏移量，默认为0。          |
+| `page_size`   | int  | 否   | 每页返回的内容数量，默认为20。 |
+| `page_index`  | int  | 否   | 第几页，默认第一页。          |
 
 **响应参数：**
 
@@ -1895,7 +1962,7 @@ class Like(models.Model):
 
 | 参数名         | 类型   | 描述                                       |
 | -------------- | ------ | ------------------------------------------ |
-| `content_type` | string | 内容类型（`article`、`post` 或 `reply`）。 |
+| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
 | `content_id`   | int    | 内容的ID。                                 |
 
 ------
@@ -2009,9 +2076,7 @@ class Image(models.Model):
 - **400 Bad Request**: 上传的文件格式不支持或文件过大。
 - **500 Internal Server Error**: 服务器内部错误。
 
-------
 
-以下是补全后的 **12. 资源API板块** 文档：
 
 ---
 
