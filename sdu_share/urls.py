@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views
+from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views, image_views, resource_views
 
 from .views import CustomTokenRefreshView
 
@@ -69,4 +69,12 @@ urlpatterns = [
     path('api/like/user', like_views.UserLikesView.as_view(), name='user_likes'),
 
     path('api/user/homepage', user_views.UserProfileView.as_view(), name='user-profile'),
+
+    path('api/image/profile', image_views.ProfileImageUpload.as_view()),
+    path('api/image/user', image_views.UserProfileImage.as_view()),
+    path('api/image/article', image_views.ArticleImageUpload.as_view()),
+    path('api/image/get/<str:image_name>', image_views.ImageRetrieve.as_view()),
+
+    path('api/resource/upload', resource_views.ResourceUploadView.as_view(), name='resource-upload'),
+    path('api/resource/download', resource_views.ResourceDownloadView.as_view(), name='resource-download'),
 ]

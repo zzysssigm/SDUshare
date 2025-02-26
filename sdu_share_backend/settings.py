@@ -178,7 +178,10 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'sdu_share.authentication.CustomJWTAuthentication'
     ],
-    'EXCEPTION_HANDLER': 'sdu_share.exceptions.custom_exception_handler'  # 新增配置
+    'EXCEPTION_HANDLER': 'sdu_share.exceptions.custom_exception_handler',  # 新增配置
+    'DEFAULT_THROTTLE_RATES': {
+        'profile_upload': '1/3h',  # 每3小时1次
+    }
 }
 
 SIMPLE_JWT = {
@@ -208,3 +211,14 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 3600,  # 每小时
     }
 }
+
+
+# 文件存储配置
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# 默认头像配置
+DEFAULT_PROFILE_IMAGE = '/static/images/default_avatar.png'
+
+# 文件大小限制
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB

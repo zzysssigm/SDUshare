@@ -7,6 +7,8 @@ from django.conf import settings
 from mptt.models import MPTTModel, TreeForeignKey
 from django.core.cache import cache
 from django.db.models import F
+from django.core.validators import FileExtensionValidator
+import uuid
 
 
 class BlacklistedAccessToken(models.Model):
@@ -531,3 +533,26 @@ class Star(models.Model):
             count = cls.objects.filter(content_type=ct, object_id=obj.id).count()
             cache.set(cache_key, count, timeout=300)
         return count
+    
+def image_upload_path(instance, filename):
+    return f"images/{uuid.uuid4().hex[:8]}/{filename}"
+
+class Image(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
+    image = models.ImageField(
+        upload_to=image_upload_path,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'gif'])],
+        verbose_name='图片文件'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    file_size = models.PositiveIntegerField(editable=False)
+    content_type = models.CharField(max_length=50, editable=False)
+    is_profile_image = models.BooleanField(default=False)  # 新增字段标识头像图片
+
+    @property
+    def image_name(self):
+        return self.image.name.split('/')[-1]
