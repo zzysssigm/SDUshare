@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views
+from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views
 
 from .views import CustomTokenRefreshView
 
@@ -68,4 +68,5 @@ urlpatterns = [
     path('api/like/count', like_views.LikeCountView.as_view(), name='like_count'),
     path('api/like/user', like_views.UserLikesView.as_view(), name='user_likes'),
 
+    path('api/user/homepage', user_views.UserProfileView.as_view(), name='user-profile'),
 ]
