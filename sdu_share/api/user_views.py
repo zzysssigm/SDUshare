@@ -103,10 +103,11 @@ class UserProfileView(APIView):
     def _build_full_profile(self, user):
         """完整信息（本人可见）"""
         return {
-            'id': user.id,
-            'username': user.username,
+            'user_id': user.id,
+            'user_name': user.username,
             'email': user.email,
             'reputation': user.reputation,
+            'reputation_level': self._calc_reputation_level(user.reputation),
             'master': user.master,
             'super_master': user.super_master,
             'profile_url': user.profile_url,
@@ -115,19 +116,24 @@ class UserProfileView(APIView):
             'major': user.major,
             'all_articles': user.all_articles,
             'all_posts': user.all_posts,
+            'all_replys': user.all_replys,
             'block_status': user.block,
+            'block_end_time': user.block_end_time.isoformat() if user.block_end_time else '',
             'created_at': user.date_joined.isoformat()
         }
 
     def _build_basic_profile(self, user):
         """基础信息（他人可见）"""
         return {
-            'id': user.id,
-            'username': user.username,
+            'user_id': user.id,
+            'user_name': user.username,
             'profile_url': user.profile_url,
             'campus': user.campus,
             'college': user.college,
             'major': user.major,
+            'master': user.master,
+            'super_master': user.super_master,
+            'block_status': user.block,
             'reputation_level': self._calc_reputation_level(user.reputation),
             'article_count': user.all_articles,
             'post_count': user.all_posts,
@@ -137,7 +143,7 @@ class UserProfileView(APIView):
     def _calc_reputation_level(self, reputation):
         """计算信誉等级"""
         if reputation >= 200:
-            return "顶级用户"
+            return "高级用户"
         elif reputation >= 150:
             return "优秀用户"
         elif reputation >= 100:
