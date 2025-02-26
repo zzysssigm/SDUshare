@@ -2,7 +2,7 @@
 
 
 
-# API：整合修订（1.4.3）
+# API：整合修订（1.4.4）
 
 - 统一了命名规范，并划分了对应板块；
 - 注册时，增加了校区、专业等选填项；
@@ -19,22 +19,58 @@
 - 1.4.3修订：课程评价与评分单开一个了CourseReview类，后续重构时考虑使其继承post类，或者单开一个关联reply；
 - 1.4.3修订：点赞板块的content_type改成int类型了，考虑到比较高频，还是int性能好一点
 - 1.4.3修订：点赞操作的user_id参数没必要，可以直接从header的access token获取
+- 1.4.3修订：简单把身份认证部分的返回形式改成了status+message，原生报错考虑一下要不要改，目前来说感觉没啥必要
+- 1.4.4修订：增加了用户主页的api，简单进行了缓存优化；
+- 1.4.4修订：增加了获取文章图片的api，这一块重构了不少；
+- 1.4.4修订：写了权限设置和屏蔽管理，不过是初步的，后续感觉还要优化；
 
 
 Todo：
 
-- 获取article时添加按tags筛选的功能
-- 完善搜索功能
-- 修复鉴权bug
+- 写一下搜索功能
 - 文档里的类之后可能会修改，仅供参考
 - 状态码待完善
+- 封禁系统需要简单完善一下
+- sdu邮箱换绑需要支持
+- 一些缓存/索引优化
+- 置顶功能的api
+- 目前基础部分就差私信/通知/图片/资源/封禁/管理员的部分，工作量不大，尽量本周写完
+- course需要保存每一个修改版本，且修改需要经过管理员审核，标记贡献者等。
+- 贡献值/荣誉分等细节
+- 应该搞一个按照影响力排序的用户列表
+- 忘记做置顶操作的api了
+
+
+
+## 0.自定义JWT认证
+
+简单说下，后续会补充详细版本+状态码说明。
+
+用户登录后可以获取Access_Token和Refresh_Token，其中Access_Token每小时过期一次，Refresh_Token每星期过期一次。
+
+需要在header添加如下内容：
+
+```
+Authorization: Bearer <access_token>
+```
+
+示例：
+
+```
+Authorization: Bearer 
+eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjo...
+```
+
+Access_Token过期后需要通过`GET index/api/refresh`（请求参数为`"refresh":<refresh_token>`）来获取新token。
+
+
 
 ## 1.账户板块（登录，登出，注册，注销）
 
 ### （0）用户的类
 
 ```python
-# 继承AbstractUser, 自带id, username和password
+# 继承AbstractUser, 自带id, username，password，created_at
 
 class User(AbstractUser):
 	email = models.EmailField(unique=True)  # 确保email唯一
@@ -313,12 +349,75 @@ class User(AbstractUser):
 **响应参数：**
 
 - **200 OK**: 验证码获取成功；
-
 - **404 Not Found**: 验证码未找到或已过期。
-
 - **429 Too Many Requests**:  验证码请求过多，例如短时间内多次请求验证码；
-
 - **500 Internal Server Error**: 服务器内部错误；
+
+### （6）用户主页
+
+#### **url：`/index/homepage`**
+
+**GET `/homepage?user_id=user_id`**
+**描述：**
+此接口用于向指定的邮箱发送验证码，用于验证用户邮箱。
+
+**请求参数：**
+
+| 参数名  | 类型   | 必填 | 描述           |
+| ------- | ------ | ---- | -------------- |
+| `user_id` | int | 否   | 目标用户的user_id，若为空则默认返回用户自己的主页。 |
+
+**响应参数：**
+
+| 参数名      | 类型   | 描述                             |
+| ----------- | ------ | -------------------------------- |
+| `status`    | int    | 状态码。                         |
+| `message`   | string | 返回信息。                       |
+| `data`| list  | 用户信息 |
+
+- **200 OK**: 获取黑名单列表成功；
+- **404 Unauthorized**: 用户不存在；
+- **500 Internal Server Error**: 服务器内部错误；
+
+
+**若获取成功，且获取的为用户自己的主页，则 `data` 的内容如下：**
+
+| 参数名        | 类型   | 描述                               |
+| ------------- | ------ | ---------------------------------- |
+| `user_id`     | int    | 用户的ID。                   |
+| `user_name`   | string | 用户名。               |
+| `email`       | string | 用户的邮箱。                 |
+| `profile_url` | string | 用户的头像地址。             |
+| `reputation`  | int    | 用户荣誉分。             |
+| `reputation_level`  | string   | 用户荣誉等级。      |
+| `master`      | bool   | 是否是管理员。             |
+| `super_master`| bool   | 是否是超级管理员。             |
+| `campus`      | string | 用户的校区。             |
+| `college`     | string | 用户的学院。             |
+| `major`       | string | 用户的专业。             |
+| `all_articles` | int | 用户的总文章数。             |
+| `all_posts` | int | 用户的总帖子数。             |
+| `all_replys` | int | 用户的总回复数。             |
+| `created_at` | time | 用户注册时间，格式参考`2025-02-09T15:40:01.006600+00:00`。             |
+| `block_status` | bool | 用户是否被封禁。             |
+| `block_end_time` | time | 如果被封禁的话，封禁什么时候结束。|
+
+**若获取成功，且获取的不是用户自己的主页，则 `data` 的内容如下：**
+
+| 参数名        | 类型   | 描述                               |
+| ------------- | ------ | ---------------------------------- |
+| `user_id`     | int    | 用户的ID。                   |
+| `user_name`   | string | 用户名。               |
+| `email`       | string | 用户的邮箱。                 |
+| `profile_url` | string | 用户的头像地址。             |
+| `reputation_level`  | string    | 用户荣誉等级。             |
+| `master`      | bool   | 是否是管理员。             |
+| `super_master`| bool   | 是否是超级管理员。             |
+| `campus`      | string | 用户的校区。             |
+| `college`     | string | 用户的学院。             |
+| `major`       | string | 用户的专业。             |
+| `registration_year` | int | 用户注册的年份。             |
+| `block_status` | bool | 用户是否被封禁。             |
 
 ## 2.黑名单板块
 
@@ -411,7 +510,7 @@ class BlockList(models.Model):
 - **500 Internal Server Error**: 服务器内部错误；
 
 
-**若获取成功，则 `block_list` 的内容如下：**
+**若获取成功，则 `block_list` 的每个对象内容如下：**
 
 | 参数名        | 类型   | 描述                               |
 | ------------- | ------ | ---------------------------------- |
@@ -647,7 +746,7 @@ class Tag(models.Model):
 | `if_like`            | bool   | 是否已经点赞过。               |
 
 ---
-### **（6）分页获取article列表（支持按时间/收藏/浏览量等排序，支持tag筛选）**
+### （6）分页获取article列表（支持按时间/收藏/浏览量等排序，支持tag筛选）
 
 忘记做like了筛选了，是不是合并成热度会好一点
 
@@ -2018,9 +2117,9 @@ class Image(models.Model):
 
 ### （2）获取用户头像
 
-#### **url：`/index/image/profile/`**
+#### **url：`/index/image/user`**
 
-**GET `/image/profile?user_name=user_name`**
+**GET `/image/user?user_name=user_name`**
 
 **描述：**
  此接口用于获取指定用户的头像，若用户没有头像，则返回默认头像。
@@ -2029,7 +2128,7 @@ class Image(models.Model):
 
 | 参数名     | 类型   | 必填 | 描述   |
 | ---------- | ------ | ---- | ------ |
-| `user_name` | string | 是   | 用户名 |
+| `user_id` |int | 是   | 用户id |
 
 **响应参数：**
 
@@ -2078,9 +2177,78 @@ class Image(models.Model):
 
 
 
+### （4）根据url get图片
+
+#### **url：`/index/image/get/<image_name>`**
+
+**GET `/image/get/<image_name>`**
+
+**描述：**
+ 此接口用于获取图片
+
+**请求参数：**
+
+无
+
+**响应参数：**
+
+| 参数名    | 类型   | 描述                  |
+| --------- | ------ | --------------------- |
+| `status`  | int    | 状态码                |
+| `message` | string | 返回信息              |
+| `image`| file | 返回图片 |
+
+**状态码说明：**
+
+- **200 OK**: 获取成功，返回图片。
+- **500 Internal Server Error**: 服务器内部错误。
+
+
+
 ---
 
 ## 12. 资源API板块
+
+### （0）Resource类
+
+```python
+def resource_upload_path(instance, filename):
+    return f"resources/{uuid.uuid4().hex[:8]}/{filename}"
+
+class Resource(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='resources'
+    )
+    article = models.ForeignKey(
+        'Article',  # 假设存在Article模型
+        on_delete=models.CASCADE,
+        related_name='resources'
+    )
+    file = models.FileField(
+        upload_to=resource_upload_path,
+        validators=[
+            FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'zip', 'rar'])
+        ],
+        verbose_name='资源文件'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    file_size = models.PositiveIntegerField(editable=False)
+    file_type = models.CharField(max_length=20, editable=False)
+    download_count = models.PositiveIntegerField(default=0, verbose_name='下载次数')
+
+    @property
+    def filename(self):
+        return self.file.name.split('/')[-1]
+
+    def save(self, *args, **kwargs):
+        self.file_size = self.file.size
+        self.file_type = self.file.name.split('.')[-1].lower()
+        super().save(*args, **kwargs)
+```
+
+
 
 ### （1）上传资源
 
@@ -2146,12 +2314,253 @@ class Image(models.Model):
 
 
 
-## 13.封禁与屏蔽板块
-还没开始写
+## 13. 封禁与屏蔽管理API板块
+
+### （1）封禁用户
+
+#### **url: `/index/admin/block/user/`**
+
+**POST `/admin/block/user`**
+
+**接口描述：**
+ 管理员及以上权限封禁用户（需记录操作日志，或者直接搞个表记录），被封禁需立即执行一次登出操作？之后改吧
+
+**请求参数：**
+
+| 参数名    | 类型 | 必填 | 描述                  |
+| --------- | ---- | ---- | --------------------- |
+| `user_id` | int  | 是   | 要封禁的用户ID        |
+| `days`    | int  | 是   | 封禁天数（1-90天，超过90视作永久封禁） |
+
+**响应参数：**
+
+- **200 OK**: 封禁成功
+- **400 Bad Request**: 参数错误/不能操作自己
+- **403 Forbidden**: 无操作权限
+- **404 Not Found**: 目标用户不存在
+- **500 Internal Server Error**: 服务器内部错误
+
+---
+
+### （2）解禁用户
+
+#### **url: `/index/admin/unblock/user/`**
+
+**POST `/admin/unblock/user`**
+
+**接口描述：**
+ 超级管理员解禁用户（需记录操作日志）
+
+**请求参数：**
+
+| 参数名    | 类型 | 必填 | 描述           |
+| --------- | ---- | ---- | -------------- |
+| `user_id` | int  | 是   | 要解禁的用户ID |
+
+**响应参数：**（同上）
+
+**状态码说明：**
+
+- **200 OK**: 解禁成功
+- **400 Bad Request**: 用户未被封禁
+- **403 Forbidden**: 仅限超级管理员操作
+- **404 Not Found**: 目标用户不存在
+
+---
+
+### （3）文章屏蔽管理
+
+#### **url: `/index/admin/article/action/`**
+
+**POST `/admin/article/action`**
+
+**接口描述：**
+ 管理员屏蔽文章，超级管理员可删除/屏蔽
+
+**请求参数：**
+
+| 参数名       | 类型   | 必填 | 描述                     |
+| ------------ | ------ | ---- | ------------------------ |
+| `article_id` | int    | 是   | 操作的文章ID             |
+| `action`     | string | 是   | 操作类型（block/delete） |
+
+**响应参数：**
 
 
+- **200 OK**: 操作成功
+- **400 Bad Request**: 无效操作类型
+- **403 Forbidden**: 无操作权限
+- **404 Not Found**: 文章不存在
+
+---
+
+### （4）获取封禁用户列表
+
+#### **url: `/index/admin/blocked-users/`**
+
+**GET `/admin/blocked-users?page=1&size=20`**
+
+**接口描述：**
+ 管理员及以上权限查看被封禁用户列表
+
+**请求参数：**
+
+| 参数名 | 类型 | 必填 | 描述               |
+| ------ | ---- | ---- | ------------------ |
+| `page_index` | int  | 否   | 页码（默认1）      |
+| `page_size` | int  | 否   | 每页数量（默认20） |
+
+**响应参数：**
+
+| 参数名                      | 类型   | 描述                 |
+| --------------------------- | ------ | -------------------- |
+| `status`  | int    | 状态码   |
+| `message` | string | 返回信息 |
+| `user_num`  | int    | 总封禁用户数         |
+| `user_list` | array  | 用户对象数组         |
+
+若获取成功，则`user_list`内容如下：
+
+| 参数名                      | 类型   | 描述                 |
+| --------------------------- | ------ | -------------------- |
+| `id`                        | int    | 用户ID               |
+| `username`                  | string | 用户名               |
+| `block_end_time`            | string | 封禁截止时间         |
+| `operator`                  | string | 操作者用户名         |
+| `block_reason`              | string | 封禁原因（预留字段） |
+
+**状态码说明：**
+
+- **200 OK**: 获取成功
+- **403 Forbidden**: 无查看权限
+- **500 Internal Server Error**: 服务器内部错误
+
+---
+
+
+前端优化：
+1. 封禁操作二次确认弹窗
+2. 封禁用户列表的自动刷新
+3. 封禁剩余时间倒计时显示（考虑封禁直接不能登录？）
+4. 操作日志审计界面（这个不急）
+
+---
 
 ## 14.搜索功能
 
 前面的写完了再优化
 
+
+
+## 15.权限设置
+
+大概就是超级管理员和管理员的设置，超级管理员出于安全考虑只能在数据库层面操作；
+
+超级管理员能设置普通用户为管理员；然后封禁解封之类的。
+
+### （1）提升用户为管理员
+
+#### **url: `/index/admin/promote/`**
+
+**POST `/admin/promote`**
+
+**描述：**
+ 超级管理员将普通用户提升为管理员（仅限super_master操作）
+
+**请求参数：**
+
+| 参数名    | 类型 | 必填 | 描述           |
+| --------- | ---- | ---- | -------------- |
+| `user_id` | int  | 是   | 要提升的用户ID |
+
+**响应参数：**
+
+- **200 OK**: 提升成功
+- **400 Bad Request**: 参数错误或用户已是管理员
+- **403 Forbidden**: 无操作权限
+- **404 Not Found**: 目标用户不存在
+- **500 Internal Server Error**: 服务器内部错误
+
+---
+
+### （2）撤销管理员权限
+
+#### **url: `/index/admin/demote/`**
+
+**POST `/admin/demote`**
+
+**描述：**
+ 超级管理员将管理员降级为普通用户（不能操作其他super_master）
+
+**请求参数：**
+
+| 参数名    | 类型 | 必填 | 描述               |
+| --------- | ---- | ---- | ------------------ |
+| `user_id` | int  | 是   | 要撤销权限的用户ID |
+
+**响应参数：**
+
+- **200 OK**: 撤销成功
+- **400 Bad Request**: 参数错误或用户不是管理员
+- **403 Forbidden**: 无操作权限/不能操作超级管理员
+- **404 Not Found**: 目标用户不存在
+- **500 Internal Server Error**: 服务器内部错误
+
+---
+
+### （3）分页获取用户列表（管理员权限）
+
+#### **url: `/index/admin/users/`**
+
+**GET `/admin/users?page=1&size=20`**
+
+**描述：**
+ 管理员及以上权限查看用户列表（不同权限返回不同字段）
+
+**请求参数：**
+
+| 参数名 | 类型 | 必填 | 描述               |
+| ------ | ---- | ---- | ------------------ |
+| `page_size` | int  | 否   | 每页多少对象（默认20）      |
+| `page_index` | int  | 否   | 第几页（默认1） |
+
+**响应参数：**
+
+| 参数名                          | 类型   | 描述                 |
+| ------------------------------- | ------ | -------------------- |
+| `status`                   | int    | 状态码                 |
+| `message`                  | string | 返回信息               |
+| `user_num`                 | int    | 总用户数             |
+| `user_list`                | array  | 用户对象数组         |
+
+若获取成功，则`user_list`内容如下：
+| 参数名                          | 类型   | 描述                 |
+| ------------------------------- | ------ | -------------------- |     
+| `user_id`                            | int    | 用户ID               |
+| `user_name`                      | string | 用户名               |
+| `email`                         | string | 邮箱                |
+| `master`                        | bool   | 是否是管理员         |
+| `block`                         | bool   | 是否被封禁           |
+| `campus`                        | string | 校区信息             |
+| `last_login`                    | string | 最后登录时间         |
+
+**状态码说明：**
+
+- **200 OK**: 获取成功
+- **403 Forbidden**: 无查看权限
+- **500 Internal Server Error**: 服务器内部错误
+
+---
+
+### 权限逻辑说明表（暂定）
+
+| 操作             | 允许角色     | 限制条件                       |
+| ---------------- | ------------ | ------------------------------ |
+| 提升管理员       | `super_master` | 不能提升其他super_master       |
+| 撤销管理员       | `super_master` | 只能撤销master用户             |
+| 查看完整用户列表  | `super_master` | 可查看所有字段                 |
+| 查看基础用户列表  | `master`,`super_master `   | 仅可见非管理员用户的非敏感字段 |
+| 封禁/解封基础用户  | `master`,`super_master`     | 记得之后搞一个封禁列表的api，调试方便点 |
+| 封禁/解封管理员    | `super_master  `     |  |
+
+---
