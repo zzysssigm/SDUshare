@@ -9,58 +9,89 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework.pagination import PageNumberPagination
+from django.shortcuts import get_object_or_404
+from..utils.notify import NotificationService
 
 logger = logging.getLogger(__name__)
 
 class SendMessageView(APIView):
-    """发送私信接口"""
+    """支持实时通知的私信接口"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        receiver_id = request.data.get('receiver_id')
-        content = (request.data.get('content') or '').strip()
-
-        # 参数校验
-        if not receiver_id or not content:
-            return Response({
-                'status': 400,
-                'message': '缺少必要参数'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         try:
-            receiver = User.objects.get(id=receiver_id)
+            receiver_id = request.data.get('receiver_id')
+            content = (request.data.get('content') or '').strip()
+
+            # 增强参数校验
+            if not receiver_id or not content:
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': '缺少必要参数'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if len(content) > 1000:
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': '内容长度不能超过1000字'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # 获取接收用户
+            receiver = get_object_or_404(User, id=receiver_id)
             sender = request.user
 
-            # 检查双方拉黑关系
+            # 防止自我发送
+            if sender == receiver:
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': '无法给自己发送私信'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # 检查拉黑状态
             if BlockList.objects.filter(
                 Q(from_user=sender, to_user=receiver) | 
                 Q(from_user=receiver, to_user=sender)
             ).exists():
                 return Response({
-                    'status': 403,
+                    'status': status.HTTP_403_FORBIDDEN,
                     'message': '存在拉黑关系无法发送'
                 }, status=status.HTTP_403_FORBIDDEN)
 
-            # 创建消息记录
-            Message.objects.create(
+            # 创建私信记录
+            message = Message.objects.create(
                 sender=sender,
                 receiver=receiver,
                 content=content
             )
+
+            # 发送实时通知
+            try:
+                NotificationService.create_notification(
+                    user=receiver,
+                    n_type='private_message',
+                    message_template="{sender} 给你发送了私信：{content}",
+                    content_object=message,  # 关联私信记录
+                    sender=sender.username,
+                    content=content[:50]  # 截取前50字作为预览
+                )
+            except Exception as e:
+                logger.error(f"私信通知发送失败: {str(e)}", exc_info=True)
+
             return Response({
-                'status': 200,
-                'message': '私信发送成功'
+                'status': status.HTTP_200_OK,
+                'message': '私信发送成功',
+                'message_id': message.id
             }, status=status.HTTP_200_OK)
 
         except User.DoesNotExist:
             return Response({
-                'status': 404,
+                'status': status.HTTP_404_NOT_FOUND,
                 'message': '接收用户不存在'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"发送私信失败: {str(e)}", exc_info=True)
             return Response({
-                'status': 500,
+                'status': status.HTTP_500_INTERNAL_SERVER_ERROR,
                 'message': '服务器内部错误'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
