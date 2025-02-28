@@ -2,7 +2,7 @@
 
 
 
-# API：整合修订（1.4.4）
+# API：整合修订（1.4.5）
 
 - 统一了命名规范，并划分了对应板块；
 - 注册时，增加了校区、专业等选填项；
@@ -23,6 +23,8 @@
 - 1.4.4修订：增加了用户主页的api，简单进行了缓存优化；
 - 1.4.4修订：增加了获取文章图片的api，这一块重构了不少；
 - 1.4.4修订：写了权限设置和屏蔽管理，不过是初步的，后续感觉还要优化；
+- 1.4.5修订：修改了reply创建的视图函数，使其可以回复reply
+- 1.4.5修订：通知和私信部分做了较大改动
 
 
 Todo：
@@ -34,11 +36,10 @@ Todo：
 - sdu邮箱换绑需要支持
 - 一些缓存/索引优化
 - 置顶功能的api
-- 目前基础部分就差私信/通知/图片/资源/封禁/管理员的部分，工作量不大，尽量本周写完
-- course需要保存每一个修改版本，且修改需要经过管理员审核，标记贡献者等。
-- 贡献值/荣誉分等细节
-- 应该搞一个按照影响力排序的用户列表
-- 忘记做置顶操作的api了
+- 目前基础部分就差封禁/管理员的部分，工作量不大，尽量本周写完
+- course需要保存每一个修改版本，且修改需要经过管理员审核，标记贡献者等；每个课程可以由管理员进行冻结，冻结后不接受任何提交。
+- 贡献值/荣誉分等细节，应该搞一个按照影响力排序的用户列表
+- 有空的时候可以做一下关注操作
 
 
 
@@ -121,10 +122,10 @@ class User(AbstractUser):
 
 **响应参数（注：之后的响应参数，如无特殊说明均使用status+message的形式）：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `status`  | int    | 状态码。   |
+| `message` | string | 返回信息。 |
 
 - **200 OK**: 注册成功；
 - **400 Bad Request**: 注册请求的参数错误或缺失；
@@ -147,10 +148,10 @@ class User(AbstractUser):
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `status`  | int    | 状态码。   |
+| `message` | string | 返回信息。 |
 
 - **200 OK**: 验证码获取成功；
 - **404 Not Found**: 验证码未找到或已过期；
@@ -177,13 +178,13 @@ class User(AbstractUser):
 
 **响应参数：**
 
-| 参数名       | 类型   | 描述               |
-| ------------ | ------ | ------------------ |
-| `status`     | int    | 状态码。           |
-| `message`    | string | 返回信息。         |
-| `user_id`    | string | 用户id。           |
-| `user_name`  | string | 用户名。           |
-| `email`      | string | 用户邮箱。         |
+| 参数名      | 类型   | 描述       |
+| ----------- | ------ | ---------- |
+| `status`    | int    | 状态码。   |
+| `message`   | string | 返回信息。 |
+| `user_id`   | string | 用户id。   |
+| `user_name` | string | 用户名。   |
+| `email`     | string | 用户邮箱。 |
 
 - **200 OK**: 登录成功，返回用户基本信息；
 - **401 Unauthorized**: 用户名或密码错误；
@@ -210,13 +211,13 @@ class User(AbstractUser):
 
 **响应参数：**
 
-| 参数名       | 类型   | 描述               |
-| ------------ | ------ | ------------------ |
-| `status`     | int    | 状态码。           |
-| `message`    | string | 返回信息。         |
-| `user_id`    | string | 用户id。           |
-| `user_name`  | string | 用户名。           |
-| `email`      | string | 用户邮箱。         |
+| 参数名      | 类型   | 描述       |
+| ----------- | ------ | ---------- |
+| `status`    | int    | 状态码。   |
+| `message`   | string | 返回信息。 |
+| `user_id`   | string | 用户id。   |
+| `user_name` | string | 用户名。   |
+| `email`     | string | 用户邮箱。 |
 
 - **200 OK**: 登录成功，返回用户基本信息；
 - **401 Unauthorized**: 邮箱或验证码错误；
@@ -236,10 +237,10 @@ class User(AbstractUser):
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `status`  | int    | 状态码。   |
+| `message` | string | 返回信息。 |
 
 - **200 OK**: 验证码获取成功；
 - **404 Not Found**: 验证码未找到或已过期；
@@ -275,11 +276,11 @@ class User(AbstractUser):
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述             |
-| ----------- | ------ | ---- | ---------------- |
-| `user_name` | string | 是   | 用户名，需唯一。 |
-| `email`     | string | 是   | 目标邮箱地址。   |
-|  `email_code`| string   | 是 | 邮箱验证码，通过`/delete_account?send_code=1&email=email`获取 |
+| 参数名       | 类型   | 必填 | 描述                                                         |
+| ------------ | ------ | ---- | ------------------------------------------------------------ |
+| `user_name`  | string | 是   | 用户名，需唯一。                                             |
+| `email`      | string | 是   | 目标邮箱地址。                                               |
+| `email_code` | string | 是   | 邮箱验证码，通过`/delete_account?send_code=1&email=email`获取 |
 
 **响应参数：**
 
@@ -321,11 +322,11 @@ class User(AbstractUser):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `email` | string | 是   | 目标邮箱地址。 |
-| `new_pass_word` | string | 是 | 新密码。 |
-| `email_code` | string | 是   | 重置密码的验证码，通过 `/reset_password?send_code=1&email=email` 获取。 |
+| 参数名          | 类型   | 必填 | 描述                                                         |
+| --------------- | ------ | ---- | ------------------------------------------------------------ |
+| `email`         | string | 是   | 目标邮箱地址。                                               |
+| `new_pass_word` | string | 是   | 新密码。                                                     |
+| `email_code`    | string | 是   | 重置密码的验证码，通过 `/reset_password?send_code=1&email=email` 获取。 |
 
 **响应参数：**
 
@@ -363,17 +364,17 @@ class User(AbstractUser):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `user_id` | int | 否   | 目标用户的user_id，若为空则默认返回用户自己的主页。 |
+| 参数名    | 类型 | 必填 | 描述                                                |
+| --------- | ---- | ---- | --------------------------------------------------- |
+| `user_id` | int  | 否   | 目标用户的user_id，若为空则默认返回用户自己的主页。 |
 
 **响应参数：**
 
-| 参数名      | 类型   | 描述                             |
-| ----------- | ------ | -------------------------------- |
-| `status`    | int    | 状态码。                         |
-| `message`   | string | 返回信息。                       |
-| `data`| list  | 用户信息 |
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `status`  | int    | 状态码。   |
+| `message` | string | 返回信息。 |
+| `data`    | list   | 用户信息   |
 
 - **200 OK**: 获取黑名单列表成功；
 - **404 Unauthorized**: 用户不存在；
@@ -382,42 +383,42 @@ class User(AbstractUser):
 
 **若获取成功，且获取的为用户自己的主页，则 `data` 的内容如下：**
 
-| 参数名        | 类型   | 描述                               |
-| ------------- | ------ | ---------------------------------- |
-| `user_id`     | int    | 用户的ID。                   |
-| `user_name`   | string | 用户名。               |
-| `email`       | string | 用户的邮箱。                 |
-| `profile_url` | string | 用户的头像地址。             |
-| `reputation`  | int    | 用户荣誉分。             |
-| `reputation_level`  | string   | 用户荣誉等级。      |
-| `master`      | bool   | 是否是管理员。             |
-| `super_master`| bool   | 是否是超级管理员。             |
-| `campus`      | string | 用户的校区。             |
-| `college`     | string | 用户的学院。             |
-| `major`       | string | 用户的专业。             |
-| `all_articles` | int | 用户的总文章数。             |
-| `all_posts` | int | 用户的总帖子数。             |
-| `all_replys` | int | 用户的总回复数。             |
-| `created_at` | time | 用户注册时间，格式参考`2025-02-09T15:40:01.006600+00:00`。             |
-| `block_status` | bool | 用户是否被封禁。             |
-| `block_end_time` | time | 如果被封禁的话，封禁什么时候结束。|
+| 参数名             | 类型   | 描述                                                       |
+| ------------------ | ------ | ---------------------------------------------------------- |
+| `user_id`          | int    | 用户的ID。                                                 |
+| `user_name`        | string | 用户名。                                                   |
+| `email`            | string | 用户的邮箱。                                               |
+| `profile_url`      | string | 用户的头像地址。                                           |
+| `reputation`       | int    | 用户荣誉分。                                               |
+| `reputation_level` | string | 用户荣誉等级。                                             |
+| `master`           | bool   | 是否是管理员。                                             |
+| `super_master`     | bool   | 是否是超级管理员。                                         |
+| `campus`           | string | 用户的校区。                                               |
+| `college`          | string | 用户的学院。                                               |
+| `major`            | string | 用户的专业。                                               |
+| `all_articles`     | int    | 用户的总文章数。                                           |
+| `all_posts`        | int    | 用户的总帖子数。                                           |
+| `all_replys`       | int    | 用户的总回复数。                                           |
+| `created_at`       | time   | 用户注册时间，格式参考`2025-02-09T15:40:01.006600+00:00`。 |
+| `block_status`     | bool   | 用户是否被封禁。                                           |
+| `block_end_time`   | time   | 如果被封禁的话，封禁什么时候结束。                         |
 
 **若获取成功，且获取的不是用户自己的主页，则 `data` 的内容如下：**
 
-| 参数名        | 类型   | 描述                               |
-| ------------- | ------ | ---------------------------------- |
-| `user_id`     | int    | 用户的ID。                   |
-| `user_name`   | string | 用户名。               |
-| `email`       | string | 用户的邮箱。                 |
-| `profile_url` | string | 用户的头像地址。             |
-| `reputation_level`  | string    | 用户荣誉等级。             |
-| `master`      | bool   | 是否是管理员。             |
-| `super_master`| bool   | 是否是超级管理员。             |
-| `campus`      | string | 用户的校区。             |
-| `college`     | string | 用户的学院。             |
-| `major`       | string | 用户的专业。             |
-| `registration_year` | int | 用户注册的年份。             |
-| `block_status` | bool | 用户是否被封禁。             |
+| 参数名              | 类型   | 描述               |
+| ------------------- | ------ | ------------------ |
+| `user_id`           | int    | 用户的ID。         |
+| `user_name`         | string | 用户名。           |
+| `email`             | string | 用户的邮箱。       |
+| `profile_url`       | string | 用户的头像地址。   |
+| `reputation_level`  | string | 用户荣誉等级。     |
+| `master`            | bool   | 是否是管理员。     |
+| `super_master`      | bool   | 是否是超级管理员。 |
+| `campus`            | string | 用户的校区。       |
+| `college`           | string | 用户的学院。       |
+| `major`             | string | 用户的专业。       |
+| `registration_year` | int    | 用户注册的年份。   |
+| `block_status`      | bool   | 用户是否被封禁。   |
 
 ## 2.黑名单板块
 
@@ -444,9 +445,9 @@ class BlockList(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ------------------ |
-| `to_user_id` | int | 是   | 被拉黑者的id。 |
+| 参数名       | 类型 | 必填 | 描述           |
+| ------------ | ---- | ---- | -------------- |
+| `to_user_id` | int  | 是   | 被拉黑者的id。 |
 
 **响应参数：**
 
@@ -470,9 +471,9 @@ class BlockList(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ------------------ |
-| `to_user_id` | int | 是   | 被拉黑者的id。 |
+| 参数名       | 类型 | 必填 | 描述           |
+| ------------ | ---- | ---- | -------------- |
+| `to_user_id` | int  | 是   | 被拉黑者的id。 |
 
 **响应参数：**
 
@@ -493,17 +494,18 @@ class BlockList(models.Model):
 此接口用于获取当前用户的黑名单列表。返回拉黑的用户信息，包括用户名、ID、头像等。
 
 **请求参数：**
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ------------------ |
+
+| 参数名    | 类型 | 必填 | 描述                             |
+| --------- | ---- | ---- | -------------------------------- |
 | `user_id` | int  | 是   | 当前用户的ID，用于查询消息列表。 |
 
 **响应参数：**
 
-| 参数名      | 类型   | 描述                             |
-| ----------- | ------ | -------------------------------- |
-| `status`    | int    | 状态码。                         |
-| `message`   | string | 返回信息。                       |
-| `block_list`| array  | 黑名单列表，包含被拉黑用户的基本信息。 |
+| 参数名       | 类型   | 描述                                   |
+| ------------ | ------ | -------------------------------------- |
+| `status`     | int    | 状态码。                               |
+| `message`    | string | 返回信息。                             |
+| `block_list` | array  | 黑名单列表，包含被拉黑用户的基本信息。 |
 
 - **200 OK**: 获取黑名单列表成功；
 - **401 Unauthorized**: 用户未登陆或无权限获取他人黑名单；
@@ -512,12 +514,12 @@ class BlockList(models.Model):
 
 **若获取成功，则 `block_list` 的每个对象内容如下：**
 
-| 参数名        | 类型   | 描述                               |
-| ------------- | ------ | ---------------------------------- |
-| `to_user_id`  | int    | 被拉黑用户的ID。                   |
-| `to_user_name`   | string | 被拉黑用户的用户名。               |
-| `email`       | string | 被拉黑用户的邮箱。                 |
-| `profile_url` | string | 被拉黑用户的头像地址。             |
+| 参数名         | 类型   | 描述                   |
+| -------------- | ------ | ---------------------- |
+| `to_user_id`   | int    | 被拉黑用户的ID。       |
+| `to_user_name` | string | 被拉黑用户的用户名。   |
+| `email`        | string | 被拉黑用户的邮箱。     |
+| `profile_url`  | string | 被拉黑用户的头像地址。 |
 
 
 ---
@@ -580,16 +582,16 @@ class Tag(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `article_title` | string | 是   | 文章标题。 |
-| `content` | string | 是   | 文章内容。 |
-| `tags` | string | 否   | 文章标签。以逗号分隔。 |                 |
-| `article_type` | string | 否   | 文章类型：原创或转载。|
-| `origin_link` | string | 否   | 转载时的原文链接。 |
-| `resource_link` | string | 否 | 资源链接 |
-| `cover_link` | string | 否 | 封面链接 |
-| `article_summary` | string | 否 | 文章简介 |
+| 参数名            | 类型   | 必填 | 描述                   |
+| ----------------- | ------ | ---- | ---------------------- |
+| `article_title`   | string | 是   | 文章标题。             |
+| `content`         | string | 是   | 文章内容。             |
+| `tags`            | string | 否   | 文章标签。以逗号分隔。 |
+| `article_type`    | string | 否   | 文章类型：原创或转载。 |
+| `origin_link`     | string | 否   | 转载时的原文链接。     |
+| `resource_link`   | string | 否   | 资源链接               |
+| `cover_link`      | string | 否   | 封面链接               |
+| `article_summary` | string | 否   | 文章简介               |
 
 **响应参数：**
 
@@ -614,14 +616,14 @@ class Tag(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `article_id` | int | 是   | 文章的id。 |
-| `article_title` | string | 否   | 文章标题。 |
-| `content` | string | 否   | 文章内容。 |
-| `tags` | string | 否   | 文章标签。以#号分隔。 |
-| `article_type` | string | 否   | 文章类型：原创或转载。 |
-| `origin_link` | string | 否   | 转载时的原文链接。 |
+| 参数名          | 类型   | 必填 | 描述                   |
+| --------------- | ------ | ---- | ---------------------- |
+| `article_id`    | int    | 是   | 文章的id。             |
+| `article_title` | string | 否   | 文章标题。             |
+| `content`       | string | 否   | 文章内容。             |
+| `tags`          | string | 否   | 文章标签。以#号分隔。  |
+| `article_type`  | string | 否   | 文章类型：原创或转载。 |
+| `origin_link`   | string | 否   | 转载时的原文链接。     |
 
 **响应参数：**
 
@@ -643,9 +645,9 @@ class Tag(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `article_id` | int | 是   | 文章的id。 |
+| 参数名       | 类型 | 必填 | 描述       |
+| ------------ | ---- | ---- | ---------- |
+| `article_id` | int  | 是   | 文章的id。 |
 
 **响应参数：**
 
@@ -663,16 +665,17 @@ class Tag(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ------------|
-| `article_id` | int | 是   | 文章的id。 |
+| 参数名       | 类型 | 必填 | 描述       |
+| ------------ | ---- | ---- | ---------- |
+| `article_id` | int  | 是   | 文章的id。 |
 
 **响应参数：**
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
-| `article_detail` | list | 文章详情。 |
+
+| 参数名           | 类型   | 描述       |
+| ---------------- | ------ | ---------- |
+| `status`         | int    | 状态码。   |
+| `message`        | string | 返回信息。 |
+| `article_detail` | list   | 文章详情。 |
 
 - **200 OK**: 获取文章详情成功。
 
@@ -680,24 +683,24 @@ class Tag(models.Model):
 
 若获取成功，则`article_detail`的内容如下：
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `article_id` | int  | 文章id。 |
-| `article_title` | string  | 文章题目。 |
-| `article_content` | string | 文章内容。 |
-| `article_type` | string | 转载/原创。 |
-| `origin_link` | string | 若为转载，则标注原帖。 |
-| `article_tags` | array  | 文章的标签。 |
-| `author_name` | string  | 作者的名字。 |
-| `author_profile_url` | string  | 作者头像的url。 |
-| `like_count` | int  | 总点赞数。 |
-| `star_count` | int  | 总收藏数。 |
-| `view_count` | int  | 总浏览量。 |
-| `reply_count` | int | 总回复量（包括文章评论及回复）。 |
-| `source_url` | string | 资源链接。 |
-| `publish_time` | time  | 文章发布时间。 |
-| `if_like` | bool  | 是否已经点赞过。 |
-| `if_star` | bool  | 是否已经收藏过。 |
+| 参数名               | 类型   | 描述                             |
+| -------------------- | ------ | -------------------------------- |
+| `article_id`         | int    | 文章id。                         |
+| `article_title`      | string | 文章题目。                       |
+| `article_content`    | string | 文章内容。                       |
+| `article_type`       | string | 转载/原创。                      |
+| `origin_link`        | string | 若为转载，则标注原帖。           |
+| `article_tags`       | array  | 文章的标签。                     |
+| `author_name`        | string | 作者的名字。                     |
+| `author_profile_url` | string | 作者头像的url。                  |
+| `like_count`         | int    | 总点赞数。                       |
+| `star_count`         | int    | 总收藏数。                       |
+| `view_count`         | int    | 总浏览量。                       |
+| `reply_count`        | int    | 总回复量（包括文章评论及回复）。 |
+| `source_url`         | string | 资源链接。                       |
+| `publish_time`       | time   | 文章发布时间。                   |
+| `if_like`            | bool   | 是否已经点赞过。                 |
+| `if_star`            | bool   | 是否已经收藏过。                 |
 
 ---
 
@@ -712,40 +715,41 @@ class Tag(models.Model):
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述           |
-| ----------- | ------ | ---- | -------------- |
-| `article_id`| int    | 是   | 文章ID。       |
-| `page_index`| int    | 否   | 第几页，默认为第一页。 |
-| `page_size` | int    | 否   | 每页显示的Post数量，默认为20。 |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `article_id` | int  | 是   | 文章ID。                       |
+| `page_index` | int  | 否   | 第几页，默认为第一页。         |
+| `page_size`  | int  | 否   | 每页显示的Post数量，默认为20。 |
 
 **响应参数：**
 
-| 参数名   | 类型   | 描述     |
-| -------- | ------ | -------- |
-| `status` | int    | 状态码。 |
-| `message`| string | 返回信息。 |
-| `post_list` | array | Post列表。 |
+| 参数名      | 类型   | 描述       |
+| ----------- | ------ | ---------- |
+| `status`    | int    | 状态码。   |
+| `message`   | string | 返回信息。 |
+| `post_list` | array  | Post列表。 |
 
 - **200 OK**: 获取Post列表成功。
 - **500 Internal Server Error**: 服务器内部错误。
 
 若获取成功，则`post_list`中的每个Post对象的内容如下：
 
-| 参数名               | 类型   | 描述                           |
-| -------------------- | ------ | -----------------------------|
-| `post_id`            | int    | 帖子ID。                      |
-| `post_title`         | string | 帖子标题。                     |
-| `post_content`       | string | 帖子内容。                     |
-| `poster_name`        | string | 发帖人名称。                   |
-| `poster_profile_url` | string | 发帖人头像URL。                |
-| `view_count`         | int    | 帖子的浏览量。                 |
-| `like_count`         | int    | 帖子的点赞数。                 |
-| `reply_count`        | int    | 帖子的回复数。                 |
-| `tags`               | array  | 帖子的标签。                   |
-| `publish_time`       | time   | 帖子的发布时间。               |
-| `if_like`            | bool   | 是否已经点赞过。               |
+| 参数名               | 类型   | 描述             |
+| -------------------- | ------ | ---------------- |
+| `post_id`            | int    | 帖子ID。         |
+| `post_title`         | string | 帖子标题。       |
+| `post_content`       | string | 帖子内容。       |
+| `poster_name`        | string | 发帖人名称。     |
+| `poster_profile_url` | string | 发帖人头像URL。  |
+| `view_count`         | int    | 帖子的浏览量。   |
+| `like_count`         | int    | 帖子的点赞数。   |
+| `reply_count`        | int    | 帖子的回复数。   |
+| `tags`               | array  | 帖子的标签。     |
+| `publish_time`       | time   | 帖子的发布时间。 |
+| `if_like`            | bool   | 是否已经点赞过。 |
 
 ---
+
 ### （6）分页获取article列表（支持按时间/收藏/浏览量等排序，支持tag筛选）
 
 忘记做like了筛选了，是不是合并成热度会好一点
@@ -756,39 +760,39 @@ class Tag(models.Model):
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述/可选值                       |
-|------------|--------|------|----------------------------------|
-| page_index | int    | 否   | 页码，默认1                       |
+| 参数名     | 类型   | 必填 | 描述/可选值                      |
+| ---------- | ------ | ---- | -------------------------------- |
+| page_index | int    | 否   | 页码，默认1                      |
 | page_size  | int    | 否   | 每页数量，默认20                 |
 | tags       | string | 否   | 逗号分隔的标签ID                 |
 | sort       | string | 否   | 排序方式：time（默认）/star/view |
 
 **响应参数：**
 
-| 参数名        | 类型   | 描述                  |
-|-------------|--------|---------------------|
-| status      | int    | 状态码               |
-| message     | string | 返回信息              |
-| article_list| array  | 文章数据              |
-| total_pages | int    | 总页数               |
-| current_page| int    | 当前页码              |
+| 参数名       | 类型   | 描述     |
+| ------------ | ------ | -------- |
+| status       | int    | 状态码   |
+| message      | string | 返回信息 |
+| article_list | array  | 文章数据 |
+| total_pages  | int    | 总页数   |
+| current_page | int    | 当前页码 |
 
 **文章对象结构：**
 
-| 字段名              | 类型   | 描述         |
-|--------------------|--------|-------------|
-| article_id         | int    | 文章ID       |
-| article_title      | string | 文章标题      |
-| author_name        | string | 作者名称      |
-| author_profile_url | string | 作者头像URL   |
-| star_count         | int    | 收藏数        |
-| view_count         | int    | 浏览量        |
-| like_count         | int    | 点赞数        |
-| tags               | array  | 标签名称列表   |
-| publish_time       | string | 发布时间      |
-| article_summary    | string | 文章简介      |
-| cover_link         | string | 封面URL      |
-| article_type       | string | 类型（原创/转载）|
+| 字段名             | 类型   | 描述              |
+| ------------------ | ------ | ----------------- |
+| article_id         | int    | 文章ID            |
+| article_title      | string | 文章标题          |
+| author_name        | string | 作者名称          |
+| author_profile_url | string | 作者头像URL       |
+| star_count         | int    | 收藏数            |
+| view_count         | int    | 浏览量            |
+| like_count         | int    | 点赞数            |
+| tags               | array  | 标签名称列表      |
+| publish_time       | string | 发布时间          |
+| article_summary    | string | 文章简介          |
+| cover_link         | string | 封面URL           |
+| article_type       | string | 类型（原创/转载） |
 
 
 ---
@@ -824,7 +828,9 @@ class Post(models.Model):
     def __str__(self):
         return self.post_title
 ```
+
 **Reply类如下：**
+
 ```python
 class Reply(models.Model):
     id = models.AutoField(primary_key=True)
@@ -855,18 +861,18 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `article_id` | int | 是   | 文章id。 |
-| `post_title` | string | 否   | 帖子标题。 |
+| 参数名         | 类型   | 必填 | 描述       |
+| -------------- | ------ | ---- | ---------- |
+| `article_id`   | int    | 是   | 文章id。   |
+| `post_title`   | string | 否   | 帖子标题。 |
 | `post_content` | string | 是   | 帖子内容。 |
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                 |
-| --------- | ------ | -------------------- |
-| `status`  | int    | 状态码。             |
-| `message` | string | 返回信息。           |
+| 参数名    | 类型   | 描述                                 |
+| --------- | ------ | ------------------------------------ |
+| `status`  | int    | 状态码。                             |
+| `message` | string | 返回信息。                           |
 | `post_id` | int    | 若创建成功则返回post的id，方便跳转。 |
 
 - **201 Created**: 帖子创建成功。
@@ -887,17 +893,17 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `post_title` | string | 否   | 帖子标题。 |
+| 参数名         | 类型   | 必填 | 描述       |
+| -------------- | ------ | ---- | ---------- |
+| `post_title`   | string | 否   | 帖子标题。 |
 | `post_content` | string | 是   | 帖子内容。 |
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                 |
-| --------- | ------ | -------------------- |
-| `status`  | int    | 状态码。             |
-| `message` | string | 返回信息。           |
+| 参数名    | 类型   | 描述                                 |
+| --------- | ------ | ------------------------------------ |
+| `status`  | int    | 状态码。                             |
+| `message` | string | 返回信息。                           |
 | `post_id` | int    | 若创建成功则返回post的id，方便跳转。 |
 
 - **201 Created**: 帖子创建成功。
@@ -916,16 +922,16 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ----------|
-| `post_id` | int | 是   | 帖子的id。 |
+| 参数名    | 类型 | 必填 | 描述       |
+| --------- | ---- | ---- | ---------- |
+| `post_id` | int  | 是   | 帖子的id。 |
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
+| 参数名        | 类型   | 描述       |
+| ------------- | ------ | ---------- |
+| `status`      | int    | 状态码。   |
+| `message`     | string | 返回信息。 |
 | `post_detail` | array  | 帖子详情。 |
 
 - **200 OK**: 获取Post详情成功，返回详细信息。
@@ -934,17 +940,17 @@ class Reply(models.Model):
 
 若获取成功，则`post_detail`的参数如下：
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `post_id` | int  | 帖子id。 |
-| `post_title` | string  | 帖子标题。 |
-| `post_content` | string  | 帖子内容。 |
-| `poster_name` | string  | 发帖人的名字。 |
-| `poster_profile_url` | string  | 发帖人头像的url。 |
-| `view_count` | int  | 帖子的浏览量。 | 
-| `like_count` | int  | 帖子的点赞数。 |
-| `reply_count` | int  | 帖子的回复数。 |
-| `publish_time` | time  | 帖子的发布时间。 |
+| 参数名               | 类型   | 描述              |
+| -------------------- | ------ | ----------------- |
+| `post_id`            | int    | 帖子id。          |
+| `post_title`         | string | 帖子标题。        |
+| `post_content`       | string | 帖子内容。        |
+| `poster_name`        | string | 发帖人的名字。    |
+| `poster_profile_url` | string | 发帖人头像的url。 |
+| `view_count`         | int    | 帖子的浏览量。    |
+| `like_count`         | int    | 帖子的点赞数。    |
+| `reply_count`        | int    | 帖子的回复数。    |
+| `publish_time`       | time   | 帖子的发布时间。  |
 
 ---
 
@@ -959,19 +965,19 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述           |
-| ----------- | ------ | ---- | -------------- |
-| `post_id` | int    | 是   | post对应id。   |
-| `page_index`| int    | 否   | 第几页，默认为第一页。 |
-| `page_size` | int    | 否   | 每页显示的回复数量，默认为20。 |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `post_id`    | int  | 是   | post对应id。                   |
+| `page_index` | int  | 否   | 第几页，默认为第一页。         |
+| `page_size`  | int  | 否   | 每页显示的回复数量，默认为20。 |
 
 **响应参数：**
 
-| 参数名      | 类型   | 描述     |
-| ----------- | ------ | -------- |
-| `status`    | int    | 状态码。 |
-| `message`   | string | 返回信息。 |
-| `reply_list` | array | 回复列表。 |
+| 参数名       | 类型   | 描述       |
+| ------------ | ------ | ---------- |
+| `status`     | int    | 状态码。   |
+| `message`    | string | 返回信息。 |
+| `reply_list` | array  | 回复列表。 |
 
 - **200 OK**: 获取Reply列表成功。
 - **404 Not Found**: 未找到指定的帖子或回复。
@@ -979,14 +985,14 @@ class Reply(models.Model):
 
 若获取成功，则`reply_list`中的每个对象内容如下：
 
-| 参数名               | 类型   | 描述                             |
-| -------------------- | ------ | -------------------------------- |
-| `reply_id`           | int    | 回复ID。                         |
-| `reply_content`      | string | 回复内容。                       |
-| `replier_name`       | string | 回复者名字。                     |
-| `replier_profile_url` | string | 回复者头像的URL。                |
-| `like_count`         | int    | 回复的点赞数。                   |
-| `publish_time`       | time   | 回复的发布时间。                 |
+| 参数名                | 类型   | 描述              |
+| --------------------- | ------ | ----------------- |
+| `reply_id`            | int    | 回复ID。          |
+| `reply_content`       | string | 回复内容。        |
+| `replier_name`        | string | 回复者名字。      |
+| `replier_profile_url` | string | 回复者头像的URL。 |
+| `like_count`          | int    | 回复的点赞数。    |
+| `publish_time`        | time   | 回复的发布时间。  |
 
 ---
 
@@ -1001,9 +1007,9 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `post_id` | int | 是   | 帖子的id。 |
+| 参数名    | 类型 | 必填 | 描述       |
+| --------- | ---- | ---- | ---------- |
+| `post_id` | int  | 是   | 帖子的id。 |
 
 **响应参数：**
 
@@ -1012,7 +1018,7 @@ class Reply(models.Model):
 
 ---
 
-### （6）在Post下发表Reply
+### （6）在Post下发表Reply，以及对reply进行回复
 
 #### **url：`/index/reply/create`**
 
@@ -1023,10 +1029,11 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `post_id` | int | 是   | 帖子的id。 |
-| `reply_content` | string | 是   | 回复内容。 |
+| 参数名            | 类型   | 必填 | 描述              |
+| ----------------- | ------ | ---- | ----------------- |
+| `post_id`         | int    | 是   | 帖子的id。        |
+| `reply_content`   | string | 是   | 回复内容。        |
+| `parent_reply_id` | int    | 否   | 对reply进行回复。 |
 
 **响应参数：**
 
@@ -1052,9 +1059,9 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `reply_id` | int | 是   | 回复的id。 |
+| 参数名     | 类型 | 必填 | 描述       |
+| ---------- | ---- | ---- | ---------- |
+| `reply_id` | int  | 是   | 回复的id。 |
 
 **响应参数：**
 
@@ -1074,17 +1081,17 @@ class Reply(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ----------|
-| `reply_id` | int | 是   | 回复的id。 |
+| 参数名     | 类型 | 必填 | 描述       |
+| ---------- | ---- | ---- | ---------- |
+| `reply_id` | int  | 是   | 回复的id。 |
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
-| `reply_detail` | list  | 回复详情。 |
+| 参数名         | 类型   | 描述       |
+| -------------- | ------ | ---------- |
+| `status`       | int    | 状态码。   |
+| `message`      | string | 返回信息。 |
+| `reply_detail` | list   | 回复详情。 |
 
 - **200 OK**: 获取reply详情成功，返回详细信息。
 - **404 Not Found**: 未找到指定的回复。
@@ -1092,14 +1099,14 @@ class Reply(models.Model):
 
 若获取成功，则`reply_detail`的参数如下：
 
-| 参数名   | 类型   | 描述     |
-| -------- | ------ | -------- |
-| `reply_id` | int  | 回复id。 |
-| `reply_content` | string  | 回复内容。 |
-| `replier_name` | string  | 回复者名字。 |
-| `replier_profile_url` | string  | 回复者头像的url。 |
-| `like_count` | int  | 回复的点赞数。 |
-| `publish_time` | time  | 回复的发布时间。 |
+| 参数名                | 类型   | 描述              |
+| --------------------- | ------ | ----------------- |
+| `reply_id`            | int    | 回复id。          |
+| `reply_content`       | string | 回复内容。        |
+| `replier_name`        | string | 回复者名字。      |
+| `replier_profile_url` | string | 回复者头像的url。 |
+| `like_count`          | int    | 回复的点赞数。    |
+| `publish_time`        | time   | 回复的发布时间。  |
 
 ---
 
@@ -1166,24 +1173,24 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `course_name` | string | 是   | 课程名。 |
-| `course_type` | string | 是   | 课程类型（必修、选修、限选）。 |
-| `college` | string | 是   | 开设该课程的学院。 |
-| `campus` | string | 是   | 开设该课程的校区。 |
-| `credits` | decimal | 是   | 课程学分。 |
-| `course_teacher` | string | 是   | 课程教师。 |
-| `course_method` | string | 是   | 教学方式（线上、线下、混合）。 |
-| `assessment_method` | string | 是   | 考核方式。 |
+| 参数名              | 类型    | 必填 | 描述                           |
+| ------------------- | ------- | ---- | ------------------------------ |
+| `course_name`       | string  | 是   | 课程名。                       |
+| `course_type`       | string  | 是   | 课程类型（必修、选修、限选）。 |
+| `college`           | string  | 是   | 开设该课程的学院。             |
+| `campus`            | string  | 是   | 开设该课程的校区。             |
+| `credits`           | decimal | 是   | 课程学分。                     |
+| `course_teacher`    | string  | 是   | 课程教师。                     |
+| `course_method`     | string  | 是   | 教学方式（线上、线下、混合）。 |
+| `assessment_method` | string  | 是   | 考核方式。                     |
 
 **响应参数：**
 
-| 参数名  | 类型    | 描述           |
-| ------- | ------ | ------------------ |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
-| `course_id` | int | 课程id。 |
+| 参数名      | 类型   | 描述       |
+| ----------- | ------ | ---------- |
+| `status`    | int    | 状态码。   |
+| `message`   | string | 返回信息。 |
+| `course_id` | int    | 课程id。   |
 
 - **200 OK**: 课程创建成功。
 - **400 Bad Request**: 请求参数不完整或格式错误。
@@ -1201,16 +1208,16 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `id` | int | 是   | 课程ID。 |
-| `course_name` | string | 否   | 课程名。 |
-| `course_type` | string | 否   | 课程类型（必修、选修、限选）。 |
-| `college` | string | 否   | 开设大学。 |
-| `credits` | decimal | 否   | 课程学分。 |
-| `course_teacher` | string | 否   | 课程教师。 |
-| `course_method` | string | 否   | 教学方式（线上、线下、混合）。 |
-| `assessment_method` | string | 否   | 考核方式。 |
+| 参数名              | 类型    | 必填 | 描述                           |
+| ------------------- | ------- | ---- | ------------------------------ |
+| `id`                | int     | 是   | 课程ID。                       |
+| `course_name`       | string  | 否   | 课程名。                       |
+| `course_type`       | string  | 否   | 课程类型（必修、选修、限选）。 |
+| `college`           | string  | 否   | 开设大学。                     |
+| `credits`           | decimal | 否   | 课程学分。                     |
+| `course_teacher`    | string  | 否   | 课程教师。                     |
+| `course_method`     | string  | 否   | 教学方式（线上、线下、混合）。 |
+| `assessment_method` | string  | 否   | 考核方式。                     |
 
 **响应参数：**
 
@@ -1231,9 +1238,9 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `course_id` | int | 是   | 课程ID。 |
+| 参数名      | 类型 | 必填 | 描述     |
+| ----------- | ---- | ---- | -------- |
+| `course_id` | int  | 是   | 课程ID。 |
 
 **响应参数：**
 
@@ -1256,11 +1263,11 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `course_id` | int | 是   | 课程ID。 |
-| `score` | decimal | 是   | 评分（0.00 到 5.00）。 |
-| `comment` | string | 否   | 评价内容。 |
+| 参数名      | 类型    | 必填 | 描述                   |
+| ----------- | ------- | ---- | ---------------------- |
+| `course_id` | int     | 是   | 课程ID。               |
+| `score`     | decimal | 是   | 评分（0.00 到 5.00）。 |
+| `comment`   | string  | 否   | 评价内容。             |
 
 **响应参数：**
 
@@ -1281,11 +1288,11 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `course_id` | int | 是   | 课程ID。 |
-| `score` | decimal | 否   | 修改后的评分（0.00 到 5.00）。 |
-| `comment` | string | 否   | 修改后的评价内容。 |
+| 参数名      | 类型    | 必填 | 描述                           |
+| ----------- | ------- | ---- | ------------------------------ |
+| `course_id` | int     | 是   | 课程ID。                       |
+| `score`     | decimal | 否   | 修改后的评分（0.00 到 5.00）。 |
+| `comment`   | string  | 否   | 修改后的评价内容。             |
 
 **响应参数：**
 
@@ -1296,6 +1303,7 @@ class Score(models.Model):
 ---
 
 ### （6）获取某个用户对某个课程的评价
+
 // 这个地方其实应该改成get吧？算了之后再改吧
 
 #### **url：`/index/course/user_evaluation`**
@@ -1307,18 +1315,18 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `user_id` | int | 是   | 用户ID。 |
-| `course_id` | int | 是   | 课程ID。 |
-**响应参数：**
+| 参数名         | 类型 | 必填 | 描述     |
+| -------------- | ---- | ---- | -------- |
+| `user_id`      | int  | 是   | 用户ID。 |
+| `course_id`    | int  | 是   | 课程ID。 |
+| **响应参数：** |      |      |          |
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
-| `score` | decimal | 用户评分（0.00 到 5.00）。 |
-| `comment` | string | 用户的评价内容。 |
+| 参数名    | 类型    | 描述                       |
+| --------- | ------- | -------------------------- |
+| `status`  | int     | 状态码。                   |
+| `message` | string  | 返回信息。                 |
+| `score`   | decimal | 用户评分（0.00 到 5.00）。 |
+| `comment` | string  | 用户的评价内容。           |
 
 - **200 OK**: 评分和评价修改成功。
 - **401 Unauthorized**: 用户未登陆或无权获得他人评价；
@@ -1333,17 +1341,17 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | ------------- |
-| `course_id` | int | 是   | 课程的id。 |
+| 参数名      | 类型 | 必填 | 描述       |
+| ----------- | ---- | ---- | ---------- |
+| `course_id` | int  | 是   | 课程的id。 |
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
-| `course_detail` | list  |课程详情。 |
+| 参数名          | 类型   | 描述       |
+| --------------- | ------ | ---------- |
+| `status`        | int    | 状态码。   |
+| `message`       | string | 返回信息。 |
+| `course_detail` | list   | 课程详情。 |
 
 - **200 OK**: 获取课程详情成功，返回详细信息。
 - **404 Not Found**: 未找到指定的课程。
@@ -1351,22 +1359,22 @@ class Score(models.Model):
 
 若获取成功，则`course_detail`内容如下：
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `course_id` | int  | 课程id。 |
-| `course_name` | string  | 课程名。 |
-| `course_type` | string  | 课程类型（必修、选修、限选）。 |
-| `college` | string  | 专业开设学院。 |
-| `campus` | string | 专业开设校区。 |
-| `credits` | decimal  | 学分。 |
-| `course_teacher` | string  | 教师名称。 |
-| `course_method` | string  | 教学方式（线上、线下、混合）。 |
-| `assessment_method` | string  | 考核方式。 |
-| `score` | decimal  | 评分（0.00 到 5.00）。 |
-| `all_score` | decimal  | 总评分。 |
-| `all_people` | int  | 总评分人数。 |
-| `relative_articles` | array  | 相关的文章列表。 |
-| `publish_time` | time  | 课程发布的时间。 |
+| 参数名              | 类型    | 描述                           |
+| ------------------- | ------- | ------------------------------ |
+| `course_id`         | int     | 课程id。                       |
+| `course_name`       | string  | 课程名。                       |
+| `course_type`       | string  | 课程类型（必修、选修、限选）。 |
+| `college`           | string  | 专业开设学院。                 |
+| `campus`            | string  | 专业开设校区。                 |
+| `credits`           | decimal | 学分。                         |
+| `course_teacher`    | string  | 教师名称。                     |
+| `course_method`     | string  | 教学方式（线上、线下、混合）。 |
+| `assessment_method` | string  | 考核方式。                     |
+| `score`             | decimal | 评分（0.00 到 5.00）。         |
+| `all_score`         | decimal | 总评分。                       |
+| `all_people`        | int     | 总评分人数。                   |
+| `relative_articles` | array   | 相关的文章列表。               |
+| `publish_time`      | time    | 课程发布的时间。               |
 
 ---
 
@@ -1381,37 +1389,37 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述           |
-| ----------- | ------ | ---- | -------------- |
-| `course_id` | int    | 是   | 课程ID。       |
-| `page_index`| int    | 否   | 第几页，默认为第一页。 |
-| `page_size` | int    | 否   | 每页显示的Post数量，默认为20。 |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `course_id`  | int  | 是   | 课程ID。                       |
+| `page_index` | int  | 否   | 第几页，默认为第一页。         |
+| `page_size`  | int  | 否   | 每页显示的Post数量，默认为20。 |
 
 **响应参数：**
 
-| 参数名   | 类型   | 描述     |
-| -------- | ------ | -------- |
-| `status` | int    | 状态码。 |
-| `message`| string | 返回信息。 |
-| `post_list` | array | Post列表。 |
+| 参数名      | 类型   | 描述       |
+| ----------- | ------ | ---------- |
+| `status`    | int    | 状态码。   |
+| `message`   | string | 返回信息。 |
+| `post_list` | array  | Post列表。 |
 
 - **200 OK**: 获取Post列表成功。
 - **500 Internal Server Error**: 服务器内部错误。
 
 若获取成功，则`post_list`中的每个Post对象的内容如下：
 
-| 参数名               | 类型   | 描述                           |
-| -------------------- | ------ | ------------------------------ |
-| `post_id`            | int    | 帖子ID。                       |
-| `post_title`         | string | 帖子标题。                     |
-| `post_content`       | string | 帖子内容。                     |
-| `poster_name`        | string | 发帖人名称。                   |
-| `poster_profile_url` | string | 发帖人头像URL。                |
-| `view_count`         | int    | 帖子的浏览量。                 |
-| `like_count`         | int    | 帖子的点赞数。                 |
-| `reply_count`        | int    | 帖子的回复数。                 |
-| `tags`               | array  | 帖子的标签。                   |
-| `publish_time`       | time   | 帖子的发布时间。               |
+| 参数名               | 类型   | 描述             |
+| -------------------- | ------ | ---------------- |
+| `post_id`            | int    | 帖子ID。         |
+| `post_title`         | string | 帖子标题。       |
+| `post_content`       | string | 帖子内容。       |
+| `poster_name`        | string | 发帖人名称。     |
+| `poster_profile_url` | string | 发帖人头像URL。  |
+| `view_count`         | int    | 帖子的浏览量。   |
+| `like_count`         | int    | 帖子的点赞数。   |
+| `reply_count`        | int    | 帖子的回复数。   |
+| `tags`               | array  | 帖子的标签。     |
+| `publish_time`       | time   | 帖子的发布时间。 |
 
 ---
 
@@ -1426,19 +1434,19 @@ class Score(models.Model):
 
 **请求参数：**
 
-| 参数名      | 类型   | 必填 | 描述           |
-| ----------- | ------ | ---- | -------------- |
-| `course_id` | int    | 是   | 课程ID。       |
-| `page_index`| int    | 否   | 第几页，默认为第一页。 |
-| `page_size` | int    | 否   | 每页显示的post数量，默认为20。 |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `course_id`  | int  | 是   | 课程ID。                       |
+| `page_index` | int  | 否   | 第几页，默认为第一页。         |
+| `page_size`  | int  | 否   | 每页显示的post数量，默认为20。 |
 
 **响应参数：**
 
-| 参数名   | 类型   | 描述     |
-| -------- | ------ | -------- |
-| `status` | int    | 状态码。 |
-| `message`| string | 返回信息。 |
-| `score_list` | array | score列表。 |
+| 参数名       | 类型   | 描述        |
+| ------------ | ------ | ----------- |
+| `status`     | int    | 状态码。    |
+| `message`    | string | 返回信息。  |
+| `score_list` | array  | score列表。 |
 
 - **200 OK**: 获取Score列表成功。
 - **500 Internal Server Error**: 服务器内部错误。
@@ -1457,17 +1465,18 @@ class Score(models.Model):
 此接口用于提交分页要求，并获取course列表的对应页。
 
 **请求参数：**
-| 参数名  | 类型   | 必填 | 描述           |
-| ------- | ------ | ---- | -------------- |
-| `page_index` | int | 否   | 第几页，无此字段默认⾸⻚ |
-| `page_size` | int | 否   | 每⻚项⽬数，⽆此字段默认20 |
+
+| 参数名       | 类型 | 必填 | 描述                       |
+| ------------ | ---- | ---- | -------------------------- |
+| `page_index` | int  | 否   | 第几页，无此字段默认⾸⻚   |
+| `page_size`  | int  | 否   | 每⻚项⽬数，⽆此字段默认20 |
 
 **响应参数：**
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `status` | int  | 状态码。 |
-| `message` | string  | 返回信息。 |
+| 参数名        | 类型   | 描述       |
+| ------------- | ------ | ---------- |
+| `status`      | int    | 状态码。   |
+| `message`     | string | 返回信息。 |
 | `course_list` | array  | post列表。 |
 
 - **200 OK**: 获取课程列表成功。
@@ -1476,21 +1485,21 @@ class Score(models.Model):
 
 若获取成功，则`course_list`中的每个list对象的内容如下：
 
-| 参数名   | 类型 | 描述     |
-| -------- | ---- | -------- |
-| `course_id` | int  | 课程id。 |
-| `course_name` | string  | 课程名。 |
-| `course_type` | string  | 课程类型（必修、选修、限选）。 |
-| `college` | string  | 开设学院。 |
-| `credits` | decimal  | 学分。 |
-| `course_teacher` | string  | 教师名称。 |
-| `course_method` | string  | 教学方式（线上、线下、混合）。 |
-| `assessment_method` | string  | 考核方式。 |
-| `score` | decimal  | 评分（0.00 到 5.00）。 |
-| `all_score` | decimal  | 总评分。 |
-| `all_people` | int  | 总评分人数。 |
-| `relative_articles` | array  | 相关的文章列表。 |
-| `publish_time` | time  | 课程发布的时间。 |
+| 参数名              | 类型    | 描述                           |
+| ------------------- | ------- | ------------------------------ |
+| `course_id`         | int     | 课程id。                       |
+| `course_name`       | string  | 课程名。                       |
+| `course_type`       | string  | 课程类型（必修、选修、限选）。 |
+| `college`           | string  | 开设学院。                     |
+| `credits`           | decimal | 学分。                         |
+| `course_teacher`    | string  | 教师名称。                     |
+| `course_method`     | string  | 教学方式（线上、线下、混合）。 |
+| `assessment_method` | string  | 考核方式。                     |
+| `score`             | decimal | 评分（0.00 到 5.00）。         |
+| `all_score`         | decimal | 总评分。                       |
+| `all_people`        | int     | 总评分人数。                   |
+| `relative_articles` | array   | 相关的文章列表。               |
+| `publish_time`      | time    | 课程发布的时间。               |
 
 ---
 
@@ -1534,6 +1543,12 @@ class Message(models.Model):
 
 **响应参数：**
 
+| 参数名       | 类型   | 描述       |
+| ------------ | ------ | ---------- |
+| `status`     | int    | 状态码。   |
+| `message`    | string | 返回信息。 |
+| `message_id` | int    | 消息id。   |
+
 - **200 OK**: 私信发送成功；
 - **404 Not Found**: 接收者用户未找到；
 - **400 Bad Request**: 请求参数错误；
@@ -1550,16 +1565,15 @@ class Message(models.Model):
 
 **请求参数：**
 
-| 参数名    | 类型 | 必填 | 描述                             |
-| --------- | ---- | ---- | -------------------------------- |
-| `user_id` | int  | 是   | 当前用户的ID，用于查询消息列表。 |
-| `page_size`   | int  | 否   | 每页返回的消息数量，默认10条。   |
-| `page_index`  | int  | 否   | 第几页，默认第一页。        |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `page_size`  | int  | 否   | 每页返回的消息数量，默认10条。 |
+| `page_index` | int  | 否   | 第几页，默认第一页。           |
 
 **响应参数：**
 
 | 参数名         | 类型   | 描述                               |
-| -------------- | ------ | ------------------------------ |
+| -------------- | ------ | ---------------------------------- |
 | `status`       | int    | 状态码。                           |
 | `message`      | string | 返回信息。                         |
 | `message_list` | array  | 消息列表，包含每条消息的详细信息。 |
@@ -1614,9 +1628,9 @@ class Message(models.Model):
 
 **请求参数：**
 
-| 参数名       | 类型 | 必填 | 描述                    |
-| ------------ | ---- | ---- | -------------------- |
-| `message_id` | int  | 是   | 消息的ID。             |
+| 参数名       | 类型 | 必填 | 描述       |
+| ------------ | ---- | ---- | ---------- |
+| `message_id` | int  | 是   | 消息的ID。 |
 
 **响应参数：**
 
@@ -1646,32 +1660,7 @@ class Notification(models.Model):
 
 ### （1）发送通知
 
-#### **url：`index/notifications/send`**
-
-**POST /`notifications/send`**
-
-**描述：**  
-此接口用于发送通知给用户，通知内容由系统或管理员定义。
-
-**请求参数：**
-
-| 参数名     | 类型   | 必填 | 描述                             |
-| ---------- | ------ | ---- | -------------------------------- |
-| `user_id`  | int    | 是   | 接收通知的用户ID。               |
-| `message`  | string | 是   | 通知内容。                       |
-
-**响应参数：**
-
-| 参数名    | 类型   | 描述                |
-| --------- | ------ | ------------------- |
-| `status`  | int    | 状态码。             |
-| `message` | string | 返回信息。           |
-
-**状态码说明：**
-
-- **200 OK**: 通知发送成功；
-- **404 Not Found**: 用户未找到；
-- **500 Internal Server Error**: 服务器内部错误；
+搞成钩子函数了
 
 ### （2）获取通知列表
 
@@ -1684,18 +1673,17 @@ class Notification(models.Model):
 
 **请求参数：**
 
-| 参数名       | 类型 | 必填 | 描述                             |
-| ------------ | ---- | ---- | ----------------------------- |
-| `user_id`    | int  | 是   | 当前用户的ID，用于查询通知列表。 |
-| `page_size`  | int  | 否   | 每页返回的通知数量，默认10条。   |
-| `page_index` | int  | 否   | 第几页，默认第一页。            |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `page_size`  | int  | 否   | 每页返回的通知数量，默认10条。 |
+| `page_index` | int  | 否   | 第几页，默认第一页。           |
 
 **响应参数：**
 
-| 参数名         | 类型   | 描述                           |
-| -------------- | ------ | ------------------------------ |
-| `status`       | int    | 状态码。                        |
-| `message`      | string | 返回信息。                      |
+| 参数名              | 类型   | 描述                               |
+| ------------------- | ------ | ---------------------------------- |
+| `status`            | int    | 状态码。                           |
+| `message`           | string | 返回信息。                         |
 | `notification_list` | array  | 通知列表，包含每条通知的详细信息。 |
 
 - **200 OK**: 获取通知列表成功；
@@ -1705,12 +1693,13 @@ class Notification(models.Model):
 
 **若获取成功，则 `notification_list` 的内容如下：**
 
-| 参数名      | 类型   | 描述                     |
-| ----------- | ------ | ------------------------ |
-| `notification_id` | int    | 通知ID。            |
-| `message`   | string | 通知内容。                |
-| `created_at` | time | 通知创建时间。              |
-| `read`      | boolean | 通知是否已读。            |
+| 参数名            | 类型   | 描述                                                         |
+| ----------------- | ------ | ------------------------------------------------------------ |
+| `notification_id` | int    | 通知ID。                                                     |
+| `type`            | string | 通知类型，`post for your article`，`reply for your post`，`reply for your reply`，`private message`。 |
+| `message`         | string | 通知内容。                                                   |
+| `created_at`      | time   | 通知创建时间。                                               |
+| `is_read`         | bool   | 通知是否已读。                                               |
 
 
 ### （3）标记通知为已读
@@ -1724,17 +1713,15 @@ class Notification(models.Model):
 
 **请求参数：**
 
-| 参数名         | 类型   | 必填 | 描述                             |
-| -------------- | ------ | ---- | -------------------------------- |
-| `notification_id` | int    | 是   | 通知的ID，用于标记已读。         |
+| 参数名            | 类型 | 必填 | 描述                     |
+| ----------------- | ---- | ---- | ------------------------ |
+| `notification_id` | int  | 是   | 通知的ID，用于标记已读。 |
 
 **响应参数：**
 
 - **200 OK**: 通知标记为已读成功；
 - **404 Not Found**: 通知未找到；
 - **500 Internal Server Error**: 服务器内部错误；
-
-好的，基于你的要求，以下是修改后的API文档：
 
 ------
 
@@ -1772,8 +1759,8 @@ class Star(models.Model):
 **请求参数：**
 
 | 参数名         | 类型   | 必填 | 描述                                     |
-| -------------- | ------ | ---- | ----------------------------------- |
-| `user_id`      | int    | 是   | 用户ID                               |
+| -------------- | ------ | ---- | ---------------------------------------- |
+| `user_id`      | int    | 是   | 用户ID                                   |
 | `content_type` | string | 是   | 收藏内容的类型：课程、文章或帖子         |
 | `content_id`   | int    | 是   | 收藏内容的ID，课程ID、文章ID或帖子ID     |
 | `folder_id`    | int    | 否   | 选择的收藏夹ID，若为空则收藏至默认收藏夹 |
@@ -1806,11 +1793,11 @@ class Star(models.Model):
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述     |
-| --------- | ------ | -------- |
-| `status`  | int    | 状态码   |
-| `message` | string | 返回信息 |
-| `folder_id` | int | 若创建成功则返回 |
+| 参数名      | 类型   | 描述             |
+| ----------- | ------ | ---------------- |
+| `status`    | int    | 状态码           |
+| `message`   | string | 返回信息         |
+| `folder_id` | int    | 若创建成功则返回 |
 
 - **200 OK**: 创建收藏夹成功
 - **400 Bad Request**: 请求参数错误或缺失
@@ -1830,14 +1817,14 @@ class Star(models.Model):
 **请求参数：**
 
 | 参数名      | 类型 | 必填 | 描述                                   |
-| ----------- | ---- | ---- | ------------------------------------ |
+| ----------- | ---- | ---- | -------------------------------------- |
 | `user_id`   | int  | 是   | 用户ID                                 |
 | `folder_id` | int  | 否   | 收藏夹ID，若为空则返回所有收藏夹的内容 |
 
 **响应参数：**
 
 | 参数名      | 类型   | 描述           |
-| ----------- | ------ | ------------ |
+| ----------- | ------ | -------------- |
 | `status`    | int    | 状态码         |
 | `message`   | string | 返回信息       |
 | `star_list` | array  | 收藏的内容列表 |
@@ -1891,17 +1878,17 @@ class Star(models.Model):
 
 **请求参数：**
 
-| 参数名     | 类型   | 必填 | 描述                   |
-| ---------- | ------ | ---- | ---------------------- |
-| `user_id`  | int    | 是   | 用户ID                 |
+| 参数名    | 类型 | 必填 | 描述   |
+| --------- | ---- | ---- | ------ |
+| `user_id` | int  | 是   | 用户ID |
 
 **响应参数：**
 
-| 参数名        | 类型   | 描述                   |
-| ------------- | ------ | ---------------------- |
-| `status`      | int    | 状态码                 |
-| `message`     | string | 返回信息               |
-| `folders`     | list   | 收藏夹列表             |
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `status`  | int    | 状态码     |
+| `message` | string | 返回信息   |
+| `folders` | list   | 收藏夹列表 |
 
 - **200 OK**: 获取收藏夹信息成功
 - **404 Not Found**: 用户未创建任何收藏夹
@@ -1909,13 +1896,13 @@ class Star(models.Model):
 
 若获取成功，则 `folders` 的内容如下：
 
-| 参数名         | 类型   | 描述                          |
-| -------------- | ------ | ----------------------------- |
-| `folder_id`    | int    | 收藏夹ID                       |
-| `folder_name`  | string | 收藏夹名称                     |
-| `description`  | string | 收藏夹描述（可选）             |
-| `star_count`   | int    | 收藏夹内的内容数量             |
-| `created_at`   | datetime | 收藏夹创建时间               |
+| 参数名        | 类型     | 描述               |
+| ------------- | -------- | ------------------ |
+| `folder_id`   | int      | 收藏夹ID           |
+| `folder_name` | string   | 收藏夹名称         |
+| `description` | string   | 收藏夹描述（可选） |
+| `star_count`  | int      | 收藏夹内的内容数量 |
+| `created_at`  | datetime | 收藏夹创建时间     |
 
 ---
 
@@ -1947,10 +1934,10 @@ class Like(models.Model):
 
 **请求参数：**
 
-| 参数名         | 类型   | 必填 | 描述                                          |
-| -------------- | ------ | ---- | ----------------------------------- |
-| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
-| `content_id`   | int    | 是   | 文章、帖子或回复的ID。                        |
+| 参数名         | 类型 | 必填 | 描述                                                   |
+| -------------- | ---- | ---- | ------------------------------------------------------ |
+| `content_type` | int  | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
+| `content_id`   | int  | 是   | 文章、帖子或回复的ID。                                 |
 
 **响应参数：**
 
@@ -1978,11 +1965,11 @@ class Like(models.Model):
 
 **请求参数：**
 
-| 参数名         | 类型   | 必填 | 描述                                          |
-| -------------- | ------ | ---- | --------------------------------------------- |
-| `user_id`      | int    | 是   | 取消点赞的用户ID。                            |
-| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
-| `content_id`   | int    | 是   | 文章、帖子或回复的ID。                  |
+| 参数名         | 类型 | 必填 | 描述                                                   |
+| -------------- | ---- | ---- | ------------------------------------------------------ |
+| `user_id`      | int  | 是   | 取消点赞的用户ID。                                     |
+| `content_type` | int  | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
+| `content_id`   | int  | 是   | 文章、帖子或回复的ID。                                 |
 
 **响应参数：**
 
@@ -2009,10 +1996,10 @@ class Like(models.Model):
 
 **请求参数：**
 
-| 参数名         | 类型   | 必填 | 描述                                          |
-| -------------- | ------ | ---- | --------------------------------------------- |
-| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
-| `content_id`   | int    | 是   | 文章、帖子或回复的ID。                        |
+| 参数名         | 类型 | 必填 | 描述                                                   |
+| -------------- | ---- | ---- | ------------------------------------------------------ |
+| `content_type` | int  | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
+| `content_id`   | int  | 是   | 文章、帖子或回复的ID。                                 |
 
 **响应参数：**
 
@@ -2039,11 +2026,11 @@ class Like(models.Model):
 
 **请求参数：**
 
-| 参数名    | 类型 | 必填 | 描述                           |
-| --------- | ---- | ---- | ------------------------------ |
-| `user_id` | int  | 是   | 用户ID。                       |
-| `page_size`   | int  | 否   | 每页返回的内容数量，默认为20。 |
-| `page_index`  | int  | 否   | 第几页，默认第一页。          |
+| 参数名       | 类型 | 必填 | 描述                           |
+| ------------ | ---- | ---- | ------------------------------ |
+| `user_id`    | int  | 是   | 用户ID。                       |
+| `page_size`  | int  | 否   | 每页返回的内容数量，默认为20。 |
+| `page_index` | int  | 否   | 第几页，默认第一页。           |
 
 **响应参数：**
 
@@ -2059,10 +2046,10 @@ class Like(models.Model):
 
 **若获取成功，则 `content_list` 的内容如下：**
 
-| 参数名         | 类型   | 描述                                       |
-| -------------- | ------ | ------------------------------------------ |
-| `content_type` | int | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
-| `content_id`   | int    | 内容的ID。                                 |
+| 参数名         | 类型 | 描述       |
+| -------------- | ---- | ---------- |
+| `content_type` | int  | 是         |
+| `content_id`   | int  | 内容的ID。 |
 
 ------
 
@@ -2101,11 +2088,11 @@ class Image(models.Model):
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                      |
-| --------- | ------ | ------------------------- |
-| `status`  | int    | 状态码                    |
-| `message` | string | 返回信息                  |
-| `profile_url`| string | 返回挂载头像图片的URL地址（形如`GET /image/profile?user_name=user_name`）|
+| 参数名        | 类型   | 描述                                                         |
+| ------------- | ------ | ------------------------------------------------------------ |
+| `status`      | int    | 状态码                                                       |
+| `message`     | string | 返回信息                                                     |
+| `profile_url` | string | 返回挂载头像图片的URL地址（形如`GET /image/profile?user_name=user_name`） |
 
 **状态码说明：**
 
@@ -2126,17 +2113,17 @@ class Image(models.Model):
 
 **请求参数：**
 
-| 参数名     | 类型   | 必填 | 描述   |
-| ---------- | ------ | ---- | ------ |
-| `user_id` |int | 是   | 用户id |
+| 参数名    | 类型 | 必填 | 描述   |
+| --------- | ---- | ---- | ------ |
+| `user_id` | int  | 是   | 用户id |
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                   |
-| --------- | ------ | ---------------------|
-| `status`  | int    | 状态码                |
-| `message` | string | 返回信息              |
-| `image` | image | 返回图片                 |
+| 参数名    | 类型   | 描述     |
+| --------- | ------ | -------- |
+| `status`  | int    | 状态码   |
+| `message` | string | 返回信息 |
+| `image`   | image  | 返回图片 |
 
 **状态码说明：**
 
@@ -2163,11 +2150,11 @@ class Image(models.Model):
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                  |
-| --------- | ------ | --------------------- |
-| `status`  | int    | 状态码                |
-| `message` | string | 返回信息              |
-| `image_url`| string | 返回图片的访问URL地址 |
+| 参数名      | 类型   | 描述                  |
+| ----------- | ------ | --------------------- |
+| `status`    | int    | 状态码                |
+| `message`   | string | 返回信息              |
+| `image_url` | string | 返回图片的访问URL地址 |
 
 **状态码说明：**
 
@@ -2192,11 +2179,11 @@ class Image(models.Model):
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                  |
-| --------- | ------ | --------------------- |
-| `status`  | int    | 状态码                |
-| `message` | string | 返回信息              |
-| `image`| file | 返回图片 |
+| 参数名    | 类型   | 描述     |
+| --------- | ------ | -------- |
+| `status`  | int    | 状态码   |
+| `message` | string | 返回信息 |
+| `image`   | file   | 返回图片 |
 
 **状态码说明：**
 
@@ -2261,18 +2248,18 @@ class Resource(models.Model):
 
 **请求参数：**
 
-| 参数名  | 类型 | 必填 | 描述           |
-| ------- | ---- | ---- | -------------- |
-| `file`  | file | 是   | 资源文件。     |
-| `article_id` | int | 是 | 关联的文章 ID。 |
+| 参数名       | 类型 | 必填 | 描述            |
+| ------------ | ---- | ---- | --------------- |
+| `file`       | file | 是   | 资源文件。      |
+| `article_id` | int  | 是   | 关联的文章 ID。 |
 
 **响应参数：**
 
-| 参数名      | 类型   | 描述                  |
-| ----------- | ------ | --------------------- |
-| `status`    | int    | 状态码                |
-| `message`   | string | 返回信息              |
-| `source_url`| string | 返回资源的下载 URL。  |
+| 参数名       | 类型   | 描述                 |
+| ------------ | ------ | -------------------- |
+| `status`     | int    | 状态码               |
+| `message`    | string | 返回信息             |
+| `source_url` | string | 返回资源的下载 URL。 |
 
 **状态码说明：**
 
@@ -2298,11 +2285,11 @@ class Resource(models.Model):
 
 **响应参数：**
 
-| 参数名    | 类型   | 描述                   |
-| --------- | ------ | ---------------------- |
-| `status`  | int    | 状态码                 |
-| `message` | string | 返回信息               |
-| `file`    | file   | 返回资源文件。         |
+| 参数名    | 类型   | 描述           |
+| --------- | ------ | -------------- |
+| `status`  | int    | 状态码         |
+| `message` | string | 返回信息       |
+| `file`    | file   | 返回资源文件。 |
 
 **状态码说明：**
 
@@ -2327,9 +2314,9 @@ class Resource(models.Model):
 
 **请求参数：**
 
-| 参数名    | 类型 | 必填 | 描述                  |
-| --------- | ---- | ---- | --------------------- |
-| `user_id` | int  | 是   | 要封禁的用户ID        |
+| 参数名    | 类型 | 必填 | 描述                                   |
+| --------- | ---- | ---- | -------------------------------------- |
+| `user_id` | int  | 是   | 要封禁的用户ID                         |
 | `days`    | int  | 是   | 封禁天数（1-90天，超过90视作永久封禁） |
 
 **响应参数：**
@@ -2405,29 +2392,29 @@ class Resource(models.Model):
 
 **请求参数：**
 
-| 参数名 | 类型 | 必填 | 描述               |
-| ------ | ---- | ---- | ------------------ |
+| 参数名       | 类型 | 必填 | 描述               |
+| ------------ | ---- | ---- | ------------------ |
 | `page_index` | int  | 否   | 页码（默认1）      |
-| `page_size` | int  | 否   | 每页数量（默认20） |
+| `page_size`  | int  | 否   | 每页数量（默认20） |
 
 **响应参数：**
 
-| 参数名                      | 类型   | 描述                 |
-| --------------------------- | ------ | -------------------- |
-| `status`  | int    | 状态码   |
-| `message` | string | 返回信息 |
-| `user_num`  | int    | 总封禁用户数         |
-| `user_list` | array  | 用户对象数组         |
+| 参数名      | 类型   | 描述         |
+| ----------- | ------ | ------------ |
+| `status`    | int    | 状态码       |
+| `message`   | string | 返回信息     |
+| `user_num`  | int    | 总封禁用户数 |
+| `user_list` | array  | 用户对象数组 |
 
 若获取成功，则`user_list`内容如下：
 
-| 参数名                      | 类型   | 描述                 |
-| --------------------------- | ------ | -------------------- |
-| `id`                        | int    | 用户ID               |
-| `username`                  | string | 用户名               |
-| `block_end_time`            | string | 封禁截止时间         |
-| `operator`                  | string | 操作者用户名         |
-| `block_reason`              | string | 封禁原因（预留字段） |
+| 参数名           | 类型   | 描述                 |
+| ---------------- | ------ | -------------------- |
+| `id`             | int    | 用户ID               |
+| `username`       | string | 用户名               |
+| `block_end_time` | string | 封禁截止时间         |
+| `operator`       | string | 操作者用户名         |
+| `block_reason`   | string | 封禁原因（预留字段） |
 
 **状态码说明：**
 
@@ -2439,6 +2426,7 @@ class Resource(models.Model):
 
 
 前端优化：
+
 1. 封禁操作二次确认弹窗
 2. 封禁用户列表的自动刷新
 3. 封禁剩余时间倒计时显示（考虑封禁直接不能登录？）
@@ -2519,30 +2507,31 @@ class Resource(models.Model):
 
 **请求参数：**
 
-| 参数名 | 类型 | 必填 | 描述               |
-| ------ | ---- | ---- | ------------------ |
-| `page_size` | int  | 否   | 每页多少对象（默认20）      |
-| `page_index` | int  | 否   | 第几页（默认1） |
+| 参数名       | 类型 | 必填 | 描述                   |
+| ------------ | ---- | ---- | ---------------------- |
+| `page_size`  | int  | 否   | 每页多少对象（默认20） |
+| `page_index` | int  | 否   | 第几页（默认1）        |
 
 **响应参数：**
 
-| 参数名                          | 类型   | 描述                 |
-| ------------------------------- | ------ | -------------------- |
-| `status`                   | int    | 状态码                 |
-| `message`                  | string | 返回信息               |
-| `user_num`                 | int    | 总用户数             |
-| `user_list`                | array  | 用户对象数组         |
+| 参数名      | 类型   | 描述         |
+| ----------- | ------ | ------------ |
+| `status`    | int    | 状态码       |
+| `message`   | string | 返回信息     |
+| `user_num`  | int    | 总用户数     |
+| `user_list` | array  | 用户对象数组 |
 
 若获取成功，则`user_list`内容如下：
-| 参数名                          | 类型   | 描述                 |
-| ------------------------------- | ------ | -------------------- |     
-| `user_id`                            | int    | 用户ID               |
-| `user_name`                      | string | 用户名               |
-| `email`                         | string | 邮箱                |
-| `master`                        | bool   | 是否是管理员         |
-| `block`                         | bool   | 是否被封禁           |
-| `campus`                        | string | 校区信息             |
-| `last_login`                    | string | 最后登录时间         |
+
+| 参数名       | 类型   | 描述         |
+| ------------ | ------ | ------------ |
+| `user_id`    | int    | 用户ID       |
+| `user_name`  | string | 用户名       |
+| `email`      | string | 邮箱         |
+| `master`     | bool   | 是否是管理员 |
+| `block`      | bool   | 是否被封禁   |
+| `campus`     | string | 校区信息     |
+| `last_login` | string | 最后登录时间 |
 
 **状态码说明：**
 
@@ -2554,13 +2543,16 @@ class Resource(models.Model):
 
 ### 权限逻辑说明表（暂定）
 
-| 操作             | 允许角色     | 限制条件                       |
-| ---------------- | ------------ | ------------------------------ |
-| 提升管理员       | `super_master` | 不能提升其他super_master       |
-| 撤销管理员       | `super_master` | 只能撤销master用户             |
-| 查看完整用户列表  | `super_master` | 可查看所有字段                 |
-| 查看基础用户列表  | `master`,`super_master `   | 仅可见非管理员用户的非敏感字段 |
-| 封禁/解封基础用户  | `master`,`super_master`     | 记得之后搞一个封禁列表的api，调试方便点 |
-| 封禁/解封管理员    | `super_master  `     |  |
+| 操作              | 允许角色                 | 限制条件                                |
+| ----------------- | ------------------------ | --------------------------------------- |
+| 提升管理员        | `super_master`           | 不能提升其他super_master                |
+| 撤销管理员        | `super_master`           | 只能撤销master用户                      |
+| 查看完整用户列表  | `super_master`           | 可查看所有字段                          |
+| 查看基础用户列表  | `master`,`super_master ` | 仅可见非管理员用户的非敏感字段          |
+| 封禁/解封基础用户 | `master`,`super_master`  | 记得之后搞一个封禁列表的api，调试方便点 |
+| 封禁/解封管理员   | `super_master  `         |                                         |
 
 ---
+
+
+
