@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views, image_views, resource_views
+from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views, image_views, resource_views, notification_views, message_views
 
 from .views import CustomTokenRefreshView
 
@@ -77,4 +77,12 @@ urlpatterns = [
 
     path('api/resource/upload', resource_views.ResourceUploadView.as_view(), name='resource-upload'),
     path('api/resource/download', resource_views.ResourceDownloadView.as_view(), name='resource-download'),
+
+    path('api/notifications/list', notification_views.NotificationListView.as_view()),
+    path('api/notifications/read', notification_views.NotificationReadView.as_view()),
+
+    path('api/messages/send', message_views.SendMessageView.as_view()),
+    path('api/messages/list', message_views.MessageListView.as_view()),
+    path('api/messages/delete', message_views.RecallMessageView.as_view()),
+    path('api/messages/read', message_views.MarkAsReadView.as_view()),
 ]

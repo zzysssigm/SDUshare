@@ -13,6 +13,7 @@ from ..models import Article, Course, Post, Like, Tag, User, Reply
 from django.core.paginator import Paginator, EmptyPage
 import logging
 from django.shortcuts import get_object_or_404
+from..utils.notify import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,24 @@ class ArticlePostCreateView(APIView):
                     post.tags.set(valid_tags)
                 except Exception as e:
                     logger.error(f"标签处理异常: {str(e)}")
+
+            try:
+                # 避免通知自己
+                if article.author != request.user:
+                    NotificationService.create_notification(
+                        user=article.author,  # 通知文章作者
+                        n_type='post for your article',  # 新增通知类型
+                        message_template=(
+                            "{username} 在你的文章《{article_title}》"
+                            "下发布了新帖子：{post_title}"
+                        ),
+                        content_object=post,  # 关联新创建的帖子
+                        username=request.user.username,
+                        article_title=article.article_title,
+                        post_title=post.post_title[:20]  # 截取前20字符防溢出
+                    )
+            except Exception as e:
+                logger.error(f"通知发送失败: {str(e)}", exc_info=True)
 
             return Response({
                 'status': status.HTTP_201_CREATED,
@@ -416,6 +435,73 @@ class ReplyCreateView(APIView):
                 reply_content=content,
                 replier=request.user
             )
+
+            # ================= 通知逻辑增强 =================
+            try:
+                # 场景1：回复帖子（无父级回复）
+                if not parent_reply:
+                    # 通知帖子作者（排除自己）
+                    if post.poster != request.user:
+                        NotificationService.create_notification(
+                            user=post.poster,
+                            n_type='reply_for_your_post',
+                            message_template=(
+                                "{username} 回复了你的帖子《{post_title}》：{content}"
+                            ),
+                            content_object=post,
+                            username=request.user.username,
+                            post_title=post.post_title[:30],
+                            content=content[:50]
+                        )
+                    
+                    # 如果帖子关联文章且作者不同，通知文章作者
+                    if post.article and post.article.author != request.user:
+                        NotificationService.create_notification(
+                            user=post.article.author,
+                            n_type='post_for_your_article',
+                            message_template=(
+                                "{username} 在你的文章《{article_title}》"
+                                "的讨论区发布了回复：{content}"
+                            ),
+                            content_object=post.article,
+                            username=request.user.username,
+                            article_title=post.article.article_title[:30],
+                            content=content[:50]
+                        )
+
+                # 场景2：回复其他回复（有父级回复）
+                else:
+                    # 通知父回复作者（排除自己）
+                    if parent_reply.replier != request.user:
+                        NotificationService.create_notification(
+                            user=parent_reply.replier,
+                            n_type='reply_for_your_reply',
+                            message_template=(
+                                "{username} 回复了你在帖子《{post_title}》"
+                                "中的评论：{content}"
+                            ),
+                            content_object=parent_reply,
+                            username=request.user.username,
+                            post_title=post.post_title[:30],
+                            content=content[:50]
+                        )
+
+                    # 如果父回复不是主帖作者，额外通知主帖作者
+                    if post.poster != request.user and post.poster != parent_reply.replier:
+                        NotificationService.create_notification(
+                            user=post.poster,
+                            n_type='reply_for_your_post',
+                            message_template=(
+                                "{username} 在你的帖子《{post_title}》"
+                                "下发布了新回复：{content}"
+                            ),
+                            content_object=post,
+                            username=request.user.username,
+                            post_title=post.post_title[:30],
+                            content=content[:50]
+                        )
+            except Exception as e:
+                logger.error(f"通知发送失败: {str(e)}", exc_info=True)
 
             return Response({
                 'status': status.HTTP_201_CREATED,

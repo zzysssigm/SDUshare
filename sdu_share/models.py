@@ -568,3 +568,84 @@ class Image(models.Model):
     @property
     def image_name(self):
         return self.image.name.split('/')[-1]
+    
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('reply_post', '回复帖子'),
+        ('reply_article', '回复文章'),
+        ('reply_reply', '回复评论'),
+        ('like', '点赞'),
+        ('system', '系统通知'),
+        ('message', '私信'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        db_index=True  # 添加索引
+    )
+    n_type = models.CharField(
+        max_length=20,
+        choices=NOTIFICATION_TYPES,
+        verbose_name="通知类型",
+        db_index=True
+    )
+    message = models.TextField(verbose_name="通知内容")
+    is_read = models.BooleanField(default=False, verbose_name="已读状态", db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间", db_index=True)
+    
+    # 通用外键关联目标内容
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    # 额外信息存储
+    extra_data = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            # 复合索引优化常见查询
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['user', 'n_type']),
+        ]
+        verbose_name = "通知"
+        verbose_name_plural = "通知"
+
+    def __str__(self):
+        return f"[{self.get_n_type_display()}] {self.message[:30]}"
+    
+
+class Message(models.Model):
+    sender = models.ForeignKey(
+        User, 
+        related_name='sent_messages', 
+        on_delete=models.CASCADE,
+        db_index=True  # 添加索引
+    )
+    receiver = models.ForeignKey(
+        User, 
+        related_name='received_messages', 
+        on_delete=models.CASCADE,
+        db_index=True  # 添加索引
+    )
+    content = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True)  # 时间索引
+    read = models.BooleanField(default=False)
+    is_deleted_by_sender = models.BooleanField(default=False)
+    is_deleted_by_receiver = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-sent_at'], name='msg_chronological_idx')  # 复合索引
+        ]
+        ordering = ['-sent_at']
+
+    def __str__(self):
+        return f"From {self.sender} to {self.receiver}: {self.content[:20]}"
