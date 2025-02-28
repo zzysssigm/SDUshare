@@ -101,7 +101,7 @@ WSGI_APPLICATION = 'sdu_share_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'sdushare3',
+        'NAME': 'sdushare_test',
         'USER': 'root',
         'PASSWORD': 'NewPassw0rd!',
         'HOST': 'localhost',

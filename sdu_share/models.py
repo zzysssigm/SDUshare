@@ -384,7 +384,6 @@ class Post(models.Model):
         """原子操作更新浏览量"""
         Post.objects.filter(id=self.id).update(views=models.F('views') + 1)
 
-    
 class Reply(models.Model):
     id = models.AutoField(primary_key=True, verbose_name="回复ID")
     reply_content = models.TextField(verbose_name="回复内容", help_text="回复内容最多支持5000字符")
@@ -406,6 +405,16 @@ class Reply(models.Model):
         db_index=True
     )
     
+    parent_reply = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name="父级回复",
+        db_index=True
+    )
+    
     likes = GenericRelation(
         'Like',
         verbose_name="点赞",
@@ -415,16 +424,19 @@ class Reply(models.Model):
     class Meta:
         verbose_name = "帖子回复"
         verbose_name_plural = "帖子回复"
-        ordering = ['-reply_time']  # 默认按时间倒序
-        
+        ordering = ['-reply_time']
         indexes = [
-            models.Index(fields=['post', '-reply_time']),  # 按帖子+时间联合索引
-            models.Index(fields=['replier', '-reply_time']),  # 按用户+时间联合索引
+            models.Index(fields=['post', 'parent_reply', '-reply_time']),
+            models.Index(fields=['replier', '-reply_time']),
         ]
-        get_latest_by = 'reply_time'
 
     def __str__(self):
         return f"{self.replier.username} → {self.post.post_title[:20]}（{self.reply_time:%Y-%m-%d}）"
+
+    def save(self, *args, **kwargs):
+        if len(self.reply_content.strip()) < 5:
+            raise ValueError("回复内容至少需要5个有效字符")
+        super().save(*args, **kwargs)
 
     def save(self, *args, **kwargs):
         """保存前自动校验内容长度"""

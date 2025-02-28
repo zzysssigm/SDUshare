@@ -12,6 +12,7 @@ from django.db.models import Count, F
 from ..models import Article, Course, Post, Like, Tag, User, Reply
 from django.core.paginator import Paginator, EmptyPage
 import logging
+from django.shortcuts import get_object_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -367,19 +368,20 @@ class PostDeleteView(APIView):
 
 # （6）创建回复
 class ReplyCreateView(APIView):
-    """创建回复接口"""
+    """支持嵌套回复的创建接口"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
             post_id = request.data.get('post_id')
+            parent_reply_id = request.data.get('parent_reply_id')
             content = request.data.get('reply_content')
             
-            # 参数校验
-            if not all([post_id, content]):
+            # 参数有效性校验
+            if not content:
                 return Response({
                     'status': status.HTTP_400_BAD_REQUEST,
-                    'message': '参数不完整'
+                    'message': '回复内容不能为空'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             if len(content.strip()) < 5:
@@ -388,18 +390,29 @@ class ReplyCreateView(APIView):
                     'message': '回复内容至少5个字符'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # 验证帖子存在性
-            try:
-                post = Post.objects.get(id=post_id)
-            except Post.DoesNotExist:
+            # 获取关联的帖子或父回复
+            post, parent_reply = None, None
+            if parent_reply_id:
+                parent_reply = get_object_or_404(Reply, id=parent_reply_id)
+                post = parent_reply.post  # 强制继承父回复的帖子
+                # 校验post_id一致性（如果同时传入了post_id）
+                if post_id and int(post_id) != post.id:
+                    return Response({
+                        'status': status.HTTP_400_BAD_REQUEST,
+                        'message': '帖子ID与父级回复不匹配'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            elif post_id:
+                post = get_object_or_404(Post, id=post_id)
+            else:
                 return Response({
-                    'status': status.HTTP_404_NOT_FOUND,
-                    'message': '帖子不存在'
-                }, status=status.HTTP_404_NOT_FOUND)
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': '必须提供帖子ID或父级回复ID'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            # 创建回复
+            # 创建回复对象
             new_reply = Reply.objects.create(
                 post=post,
+                parent_reply=parent_reply,
                 reply_content=content,
                 replier=request.user
             )
@@ -407,7 +420,8 @@ class ReplyCreateView(APIView):
             return Response({
                 'status': status.HTTP_201_CREATED,
                 'message': '回复成功',
-                'reply_id': new_reply.id
+                'reply_id': new_reply.id,
+                'parent_reply_id': parent_reply.id if parent_reply else None
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
