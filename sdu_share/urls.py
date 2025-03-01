@@ -1,5 +1,5 @@
 from django.urls import path
-from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views, image_views, resource_views, notification_views, message_views
+from sdu_share.api import auth_views, blacklist_views, article_views, post_reply_views, course_views ,like_views, user_views, image_views, resource_views, notification_views, message_views, star_views
 
 from .views import CustomTokenRefreshView
 
@@ -85,4 +85,13 @@ urlpatterns = [
     path('api/messages/list', message_views.MessageListView.as_view()),
     path('api/messages/delete', message_views.RecallMessageView.as_view()),
     path('api/messages/read', message_views.MarkAsReadView.as_view()),
+
+    path('api/star/create', star_views.StarFolderCreateView.as_view()),
+    path('api/star', star_views.StarContentView.as_view()),
+    path('api/unstar', star_views.UnstarView.as_view()),
+#     path('api/star/folder/create', star_views.StarFolderCreateView.as_view()),
+    path('api/star/folder/list', star_views.StarFolderListView.as_view()),
+    path('api/star/list', star_views.StarListView.as_view()),
+
+    
 ]

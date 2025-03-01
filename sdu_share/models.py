@@ -9,6 +9,8 @@ from django.core.cache import cache
 from django.db.models import F
 from django.core.validators import FileExtensionValidator
 import uuid
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
 
 
 class BlacklistedAccessToken(models.Model):
@@ -444,14 +446,16 @@ class Reply(models.Model):
             raise ValueError("回复内容至少需要5个有效字符")
         super().save(*args, **kwargs)
 
+
 class StarFolder(MPTTModel):
-    """支持多级嵌套的收藏夹"""
-    name = models.CharField(max_length=100, verbose_name="收藏夹名称")
+    name = models.CharField(max_length=100, verbose_name="收藏夹名称", 
+                           help_text="不超过100个字符")
     user = models.ForeignKey(
         'User', 
         on_delete=models.CASCADE,
         related_name='star_folders',
-        verbose_name="所属用户"
+        verbose_name="所属用户",
+        db_index=True  # 新增索引
     )
     parent = TreeForeignKey(
         'self',
@@ -459,29 +463,80 @@ class StarFolder(MPTTModel):
         null=True,
         blank=True,
         related_name='children',
-        verbose_name="父级收藏夹"
+        verbose_name="父级收藏夹",
+        db_index=True  # 新增索引
     )
-    is_default = models.BooleanField(default=False, verbose_name="默认收藏夹")
+    is_default = models.BooleanField(default=False, verbose_name="默认收藏夹",
+                                    help_text="每个用户有且只有一个默认收藏夹")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
-    cover = models.URLField(null=True, blank=True, verbose_name="封面图URL")
-    description = models.TextField(null=True, blank=True, verbose_name="描述")
+    cover = models.URLField(
+        null=True, 
+        blank=True, 
+        verbose_name="封面图URL",
+        validators=[URLValidator()]  # 新增URL校验
+    )
+    description = models.TextField(
+        null=True, 
+        blank=True, 
+        verbose_name="描述",
+        max_length=500,
+        help_text="不超过500个字符"
+    )
 
     class MPTTMeta:
-        order_insertion_by = ['name']
-    
+        order_insertion_by = ['-created_at']  # 改为按时间排序
+
     class Meta:
         verbose_name = "收藏夹"
         verbose_name_plural = "收藏夹"
-        unique_together = ('user', 'name')  # 同一用户下收藏夹名称唯一
-        indexes = [
-            models.Index(fields=['user', 'is_default']),
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'name'],
+                name='unique_folder_name_per_user'
+            ),
+            models.UniqueConstraint(
+                fields=['user', 'is_default'],
+                condition=models.Q(is_default=True),
+                name='unique_default_folder'
+            )
         ]
+        indexes = [
+            models.Index(fields=['user', 'parent']),  # 优化层级查询
+        ]
+
+    def clean(self):
+        # 名称校验
+        if len(self.name.strip()) < 2:
+            raise ValidationError("收藏夹名称至少需要2个有效字符")
+        
+        # 默认收藏夹名称保护
+        if self.is_default and self.name != '默认收藏':
+            raise ValidationError("默认收藏夹名称不可修改")
 
     def __str__(self):
         return f"{self.user.username}的收藏夹：{self.name}"
 
 class Star(models.Model):
-    """支持多级收藏夹的泛型收藏模型"""
+    CONTENT_TYPE_CHOICES = [
+        (0, '课程'),
+        (1, '文章'),
+        (2, '帖子')
+    ]
+    # CONTENT_TYPE_CHOICES = [
+    #     ('course', '课程'),
+    #     ('article', '文章'),
+    #     ('post', '帖子')
+    # ]
+    @property
+    def content_object(self):
+        """动态获取关联对象（适配新类型）"""
+        model_map = {
+            0: Course,
+            1: Article,
+            2: Post
+        }
+        return model_map[self.content_type].objects.get(id=self.content_id)
+    
     user = models.ForeignKey(
         'User',
         on_delete=models.CASCADE,
@@ -489,61 +544,76 @@ class Star(models.Model):
         verbose_name="用户",
         db_index=True
     )
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE,
-        verbose_name="内容类型"
+    content_type = models.SmallIntegerField(  # 改为小整数字段
+        choices=CONTENT_TYPE_CHOICES,
+        verbose_name="内容类型",
+        db_index=True
     )
-    object_id = models.PositiveIntegerField(verbose_name="对象ID")
-    content_object = GenericForeignKey('content_type', 'object_id')
-    
+    content_id = models.PositiveIntegerField(verbose_name="内容ID", db_index=True, default=0)
     folder = models.ForeignKey(
         StarFolder,
         on_delete=models.CASCADE,
         related_name='stars',
-        verbose_name="所属收藏夹"
+        verbose_name="所属收藏夹",
+        db_index=True
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="收藏时间")
-    notes = models.TextField(null=True, blank=True, verbose_name="收藏备注")
+    notes = models.TextField(
+        null=True, 
+        blank=True, 
+        verbose_name="收藏备注",
+        max_length=500,
+        help_text="不超过500个字符"
+    )
 
     class Meta:
         verbose_name = "收藏记录"
         verbose_name_plural = "收藏记录"
         indexes = [
-            models.Index(fields=['content_type', 'object_id']),
+            models.Index(fields=['content_type', 'content_id']),
             models.Index(fields=['-created_at']),
+            models.Index(fields=['user', 'folder']),  # 新增联合索引
         ]
         constraints = [
-            # 同一用户不能在同一个收藏夹重复收藏相同内容
             models.UniqueConstraint(
-                fields=['user', 'content_type', 'object_id', 'folder'],
+                fields=['user', 'content_type', 'content_id', 'folder'],
                 name='unique_star_per_folder'
             ),
         ]
 
-    def __str__(self):
-        return f"{self.user.username}收藏的{self.content_object}"
+    @property
+    def content_object(self):
+        """动态获取关联对象"""
+        model_map = {
+            'course': Course,
+            'article': Article,
+            'post': Post
+        }
+        return model_map[self.content_type].objects.get(id=self.content_id)
 
     def save(self, *args, **kwargs):
-        # 自动关联默认收藏夹
+        # 自动设置默认收藏夹
         if not self.folder_id:
-            default_folder = StarFolder.objects.get_or_create(
-                user=self.user,
-                is_default=True,
-                defaults={'name': '默认收藏'}
-            )[0]
-            self.folder = default_folder
+            self.folder = StarFolder.objects.get(
+                user=self.user, 
+                is_default=True
+            )
         super().save(*args, **kwargs)
 
     @classmethod
     def get_star_count(cls, obj):
-        """获取对象的收藏计数（带缓存）"""
-        ct = ContentType.objects.get_for_model(obj)
-        cache_key = f'star_count:{ct.id}:{obj.id}'
+        """优化后的收藏计数方法"""
+        content_type = type(obj).__name__.lower()
+        cache_key = f'star_count:{content_type}:{obj.id}'
         count = cache.get(cache_key)
+        
         if count is None:
-            count = cls.objects.filter(content_type=ct, object_id=obj.id).count()
-            cache.set(cache_key, count, timeout=300)
+            count = cls.objects.filter(
+                content_type=content_type,
+                content_id=obj.id
+            ).count()
+            cache.set(cache_key, count, timeout=600)  # 延长缓存时间
+            
         return count
     
 def image_upload_path(instance, filename):
