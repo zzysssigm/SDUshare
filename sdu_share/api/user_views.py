@@ -142,11 +142,109 @@ class UserProfileView(APIView):
 
     def _calc_reputation_level(self, reputation):
         """计算信誉等级"""
-        if reputation >= 200:
-            return "高级用户"
-        elif reputation >= 150:
-            return "优秀用户"
+        if reputation >= 1000:
+            return "学术大师"
+        elif reputation >= 500:
+            return "领域专家"
+        elif reputation >= 200:
+            return "资深创作者"
         elif reputation >= 100:
-            return "普通用户"
+            return "知识探索者"
         else:
-            return "新用户"
+            return "新晋学者"
+        
+from django.core.cache import cache
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from ..models import User
+import logging
+
+logger = logging.getLogger(__name__)
+
+class UserListView(APIView):
+    """带缓存优化的用户列表接口"""
+    # permission_classes = [IsAuthenticated]  # 根据需求决定是否开启认证
+
+    CACHE_KEY = 'user_ranking_list'
+    CACHE_TIMEOUT = 3000  # 50分钟缓存
+    REPUTATION_LEVELS = {
+        0: '新晋学者',
+        100: '知识探索者',
+        200: '资深创作者',
+        500: '领域专家',
+        1000: '学术大师'
+    }
+
+    def get_reputation_level(self, reputation):
+        """根据声誉分计算等级"""
+        thresholds = sorted(self.REPUTATION_LEVELS.keys(), reverse=True)
+        for threshold in thresholds:
+            if reputation >= threshold:
+                return self.REPUTATION_LEVELS[threshold]
+        return '新人学者'
+
+    def get(self, request):
+        try:
+            # 尝试从缓存获取数据
+            cached_data = cache.get(self.CACHE_KEY)
+            if cached_data is not None:
+                logger.debug('从缓存获取用户列表')
+                return Response(cached_data)
+
+            # 缓存未命中，查询数据库
+            users = User.objects.all().order_by(
+                '-super_master',  # 超级管理员置顶
+                '-master',        # 管理员次之
+                '-reputation'     # 按声誉分降序
+            ).values(
+                'id', 'username', 'reputation',
+                'all_likes', 'all_articles',
+                'master', 'super_master'
+            )
+
+            # 处理空结果集
+            if not users:
+                response_data = {
+                    "status": status.HTTP_200_OK,
+                    "message": "用户列表为空",
+                    "user_list": []
+                }
+                cache.set(self.CACHE_KEY, response_data, self.CACHE_TIMEOUT)
+                return Response(response_data)
+
+            # 构建响应数据
+            user_list = []
+            for user in users:
+                user_data = {
+                    "user_id": user['id'],
+                    "user_name": user['username'],
+                    "reputation_level": self.get_reputation_level(user['reputation']),
+                    "all_likes": user['all_likes'],
+                    "all_articles": user['all_articles'],
+                    "master": user['master'],
+                    "super_master": user['super_master']
+                }
+                user_list.append(user_data)
+
+            response_data = {
+                "status": status.HTTP_200_OK,
+                "message": "获取成功",
+                "user_list": user_list
+            }
+
+            # 设置缓存（添加异常处理）
+            try:
+                cache.set(self.CACHE_KEY, response_data, self.CACHE_TIMEOUT)
+                logger.debug('用户列表缓存已更新')
+            except Exception as e:
+                logger.error(f"缓存设置失败: {str(e)}", exc_info=True)
+
+            return Response(response_data)
+
+        except Exception as e:
+            logger.error(f"获取用户列表失败: {str(e)}", exc_info=True)
+            return Response({
+                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "message": "服务器内部错误"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

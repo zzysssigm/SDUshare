@@ -69,6 +69,7 @@ urlpatterns = [
     path('api/like/user', like_views.UserLikesView.as_view(), name='user_likes'),
 
     path('api/user/homepage', user_views.UserProfileView.as_view(), name='user-profile'),
+    path('api/user/list', user_views.UserListView.as_view(), name='user-list'),
 
     path('api/image/profile', image_views.ProfileImageUpload.as_view()),
     path('api/image/user', image_views.UserProfileImage.as_view()),
