@@ -24,7 +24,7 @@
 - 1.4.4修订：增加了获取文章图片的api，这一块重构了不少；
 - 1.4.4修订：写了权限设置和屏蔽管理，不过是初步的，后续感觉还要优化；
 - 1.4.5修订：修改了reply创建的视图函数，使其可以回复reply
-- 1.4.5修订：通知和私信部分做了较大改动，发送通知改成钩子函数直接在后端调用，移除了部分无用的`user_id`；有关身份认证的`user_id`全部从header的access_token获取
+- 1.4.5修订：通知和私信部分做了较大改动，发送通知改成钩子函数直接在后端调用，移除了部分无用的`user_id`；`notification_list`增加了更多返回值。
 - 1.4.5修订：获取用户头像的api传参改为`user_id`
 - 1.4.5修订：base_url由`/index`改为`/index/api`，方便后续维护
 
@@ -1686,6 +1686,8 @@ class Notification(models.Model):
 | `status`            | int    | 状态码。                           |
 | `message`           | string | 返回信息。                         |
 | `notification_list` | array  | 通知列表，包含每条通知的详细信息。 |
+| `total`             | int    | 总通知数。                         |
+| `unread_count`      | int    | 未读通知数。                       |
 
 - **200 OK**: 获取通知列表成功；
 - **401 Unauthorized**: 用户未登陆或无权获得他人通知列表；
@@ -1701,6 +1703,21 @@ class Notification(models.Model):
 | `message`         | string | 通知内容。                                                   |
 | `created_at`      | time   | 通知创建时间。                                               |
 | `is_read`         | bool   | 通知是否已读。                                               |
+| `extra`           | list   | 可能需要的额外信息，测试用。                                 |
+| `related_object`  | list   | 通知关联的对象。                                             |
+
+其中，`extra`内容如下：
+| 参数名      | 类型   | 描述               |
+| ----------- | ------ | ------------------ |
+| `user_name` | string | 通知对象的用户名。 |
+
+`related_object`内容如下：
+
+| 参数名    | 类型   | 描述                                                    |
+| --------- | ------ | ------------------------------------------------------- |
+| `type`    | string | 关联对象的类型，`post`，`message`，`article`，`reply`。 |
+| `id`      | int    | 关联对象id。                                            |
+| `preview` | string | 内容预览。                                              |
 
 
 ### （3）标记通知为已读
