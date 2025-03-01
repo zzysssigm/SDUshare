@@ -11,6 +11,7 @@ from rest_framework.pagination import PageNumberPagination
 from django.db import models
 from django.core.cache import cache
 from django.http import Http404
+from django.db import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ class StarContentView(APIView):
             }, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class StarFolderCreateView(APIView):
-    """创建收藏夹接口"""
+    """支持名称重复校验的收藏夹创建接口"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -133,18 +134,37 @@ class StarFolderCreateView(APIView):
             data = request.data
             required_fields = ['folder_name']
             
-            # 参数校验
+            # 参数存在性校验
             if missing := [f for f in required_fields if f not in data]:
                 return Response({
                     'status': status.HTTP_400_BAD_REQUEST,
                     'message': f'缺少必要参数: {", ".join(missing)}'
                 }, status.HTTP_400_BAD_REQUEST)
 
+            folder_name = data['folder_name'].strip()
+            
+            # 名称有效性校验
+            if len(folder_name) < 2:
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': '收藏夹名称至少需要2个有效字符'
+                }, status.HTTP_400_BAD_REQUEST)
+
+            # 名称重复性校验
+            if StarFolder.objects.filter(
+                user=request.user,
+                name__iexact=folder_name  # 不区分大小写校验
+            ).exists():
+                return Response({
+                    'status': status.HTTP_409_CONFLICT,
+                    'message': '收藏夹名称已存在，请使用其他名称'
+                }, status.HTTP_409_CONFLICT)
+
             # 创建收藏夹
             folder = StarFolder.objects.create(
                 user=request.user,
-                name=data['folder_name'].strip(),
-                description=data.get('description', '')[:500],
+                name=folder_name,
+                description=data.get('description', '')[:500],  # 限制长度
                 parent_id=data.get('parent_id')
             )
 
@@ -156,9 +176,12 @@ class StarFolderCreateView(APIView):
 
         except Exception as e:
             logger.error(f"创建收藏夹失败: {str(e)}", exc_info=True)
+            error_msg = '服务器内部错误'
+            if isinstance(e, IntegrityError):
+                error_msg = '收藏夹名称已存在（并发冲突）'
             return Response({
                 'status': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                'message': '服务器内部错误'
+                'message': error_msg
             }, status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class StarListView(APIView):
