@@ -1560,7 +1560,7 @@ class Message(models.Model):
 
 #### **url：`index/messages/list`**
 
-**GET `/list`**
+**GET `/list?page_size=page_size&page_index=page_index`**
 
 **描述：**
  此接口用于获取当前用户的私信列表，包括发件人、内容、发送时间等信息。
@@ -1668,7 +1668,7 @@ class Notification(models.Model):
 
 #### **url：`index/notifications/list`**
 
-**GET /`notifications/list`**
+**GET /`notifications/list?page_size=page_size&page_index=page_index`**
 
 **描述：**  
 此接口用于获取当前用户的通知列表。
@@ -1866,7 +1866,7 @@ class Star(models.Model):
 
 | 参数名         | 类型   | 必填 | 描述                                     |
 | -------------- | ------ | ---- | ---------------------------------------- |
-| `content_type` | int | 是   | 收藏内容的类型：0/1/2分别表示课程、文章或帖子         |
+| `content_type` | int | 是   | 收藏内容的类型：0/1/2分别表示课程、文章、帖子        |
 | `content_id`   | int    | 是   | 收藏内容的ID，课程ID、文章ID或帖子ID     |
 | `folder_id`    | int    | 否   | 选择的收藏夹ID，若为空则收藏至默认收藏夹 |
 
@@ -1892,7 +1892,7 @@ class Star(models.Model):
 
 | 参数名        | 类型   | 必填 | 描述                 |
 | ------------- | ------ | ---- | -------------------- |
-| `folder_name` | string | 是   | 收藏夹名称           |
+| `folder_name` | string | 是   | 收藏夹名称，同一用户的收藏夹不能重名 |
 | `description` | string | 否   | 收藏夹的描述（可选） |
 
 **响应参数：**
@@ -1940,7 +1940,7 @@ class Star(models.Model):
 
 | 参数名         | 类型   | 描述                               |
 | -------------- | ------ | ---------------------------------- |
-| `content_type` | int | 收藏内容的类型：课程、文章或帖子   |
+| `content_type` | int | 收藏内容的类型：0/1/2分别表示课程、文章、帖子 |
 | `content_id`   | int    | 收藏内容的ID                       |
 | `content_name` | string | 内容的名称（如课程名、文章标题等） |
 | `created_at`   | time   | 收藏时间                           |
@@ -1960,7 +1960,7 @@ class Star(models.Model):
 
 | 参数名         | 类型   | 必填 | 描述                                 |
 | -------------- | ------ | ---- | ------------------------------------|
-| `content_type` | string | 是   | 收藏内容的类型：课程、文章或帖子     |
+| `content_type` | int | 是   | 收藏内容的类型：0/1/2分别表示课程、文章、帖子 |
 | `content_id`   | int    | 是   | 收藏内容的ID，课程ID、文章ID或帖子ID |
 
 **响应参数：**
@@ -2067,7 +2067,6 @@ class Like(models.Model):
 
 | 参数名         | 类型 | 必填 | 描述                                                   |
 | -------------- | ---- | ---- | ------------------------------------------------------ |
-| `user_id`      | int  | 是   | 取消点赞的用户ID。                                     |
 | `content_type` | int  | 是   | 内容类型，0/1/2分别对应 `article`、`post` 、 `reply`。 |
 | `content_id`   | int  | 是   | 文章、帖子或回复的ID。                                 |
 
