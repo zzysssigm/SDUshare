@@ -24,9 +24,10 @@
 - 1.4.4修订：增加了获取文章图片的api，这一块重构了不少；
 - 1.4.4修订：写了权限设置和屏蔽管理，不过是初步的，后续感觉还要优化；
 - 1.4.5修订：修改了reply创建的视图函数，使其可以回复reply
-- 1.4.5修订：通知和私信部分做了较大改动，发送通知改成钩子函数直接在后端调用，移除了部分无用的`user_id`；`notification_list`增加了更多返回值。
+- 1.4.5修订：**通知和私信部分做了较大改动**，发送通知改成钩子函数直接在后端调用，移除了部分无用的`user_id`；`notification_list`增加了更多返回值。
 - 1.4.5修订：获取用户头像的api传参改为`user_id`
-- 1.4.5修订：base_url由`/index`改为`/index/api`，方便后续维护
+- 1.4.5修订：**base_url由`/index`改为`/index/api`，方便后续维护**
+- 1.4.5修订：**收藏部分进行了重构**，包括api的重命名和结构整合，删去了无意义的user_id，修复部分bug
 
 Todo：
 
@@ -1748,20 +1749,107 @@ class Notification(models.Model):
 ### （0）Star类
 
 ```python
-class Star(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='stars')  # 收藏的用户
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)  # 收藏内容的类型（文章、课程、帖子等）
-    object_id = models.PositiveIntegerField()  # 收藏内容的ID
-    content_object = GenericForeignKey('content_type', 'object_id')  # 泛型关联字段
+class StarFolder(MPTTModel):
+    """支持多级嵌套的收藏夹"""
+    name = models.CharField(max_length=100, verbose_name="收藏夹名称")
+    user = models.ForeignKey(
+        'User', 
+        on_delete=models.CASCADE,
+        related_name='star_folders',
+        verbose_name="所属用户"
+    )
+    parent = TreeForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name="父级收藏夹"
+    )
+    is_default = models.BooleanField(default=False, verbose_name="默认收藏夹")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    cover = models.URLField(null=True, blank=True, verbose_name="封面图URL")
+    description = models.TextField(null=True, blank=True, verbose_name="描述")
 
-    created_at = models.DateTimeField(auto_now_add=True)  # 收藏时间
-    folder = models.ForeignKey('StarFolder', on_delete=models.CASCADE, null=True, blank=True)  # 选择的收藏夹，若为空则为默认收藏夹
-
+    class MPTTMeta:
+        order_insertion_by = ['name']
+    
     class Meta:
-        unique_together = ('user', 'content_type', 'object_id')  # 确保同一个用户只能对同一内容收藏一次
+        verbose_name = "收藏夹"
+        verbose_name_plural = "收藏夹"
+        unique_together = ('user', 'name')  # 同一用户下收藏夹名称唯一
+        indexes = [
+            models.Index(fields=['user', 'is_default']),
+        ]
 
     def __str__(self):
-        return f"{self.user.username} stars {self.content_object}"
+        return f"{self.user.username}的收藏夹：{self.name}"
+
+class Star(models.Model):
+    """支持多级收藏夹的泛型收藏模型"""
+    user = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='stars',
+        verbose_name="用户",
+        db_index=True
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        verbose_name="内容类型"
+    )
+    object_id = models.PositiveIntegerField(verbose_name="对象ID")
+    content_object = GenericForeignKey('content_type', 'object_id')
+    
+    folder = models.ForeignKey(
+        StarFolder,
+        on_delete=models.CASCADE,
+        related_name='stars',
+        verbose_name="所属收藏夹"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="收藏时间")
+    notes = models.TextField(null=True, blank=True, verbose_name="收藏备注")
+
+    class Meta:
+        verbose_name = "收藏记录"
+        verbose_name_plural = "收藏记录"
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+            models.Index(fields=['-created_at']),
+        ]
+        constraints = [
+            # 同一用户不能在同一个收藏夹重复收藏相同内容
+            models.UniqueConstraint(
+                fields=['user', 'content_type', 'object_id', 'folder'],
+                name='unique_star_per_folder'
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username}收藏的{self.content_object}"
+
+    def save(self, *args, **kwargs):
+        # 自动关联默认收藏夹
+        if not self.folder_id:
+            default_folder = StarFolder.objects.get_or_create(
+                user=self.user,
+                is_default=True,
+                defaults={'name': '默认收藏'}
+            )[0]
+            self.folder = default_folder
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_star_count(cls, obj):
+        """获取对象的收藏计数（带缓存）"""
+        ct = ContentType.objects.get_for_model(obj)
+        cache_key = f'star_count:{ct.id}:{obj.id}'
+        count = cache.get(cache_key)
+        if count is None:
+            count = cls.objects.filter(content_type=ct, object_id=obj.id).count()
+            cache.set(cache_key, count, timeout=300)
+        return count
 
 ```
 
@@ -1778,8 +1866,7 @@ class Star(models.Model):
 
 | 参数名         | 类型   | 必填 | 描述                                     |
 | -------------- | ------ | ---- | ---------------------------------------- |
-| `user_id`      | int    | 是   | 用户ID                                   |
-| `content_type` | string | 是   | 收藏内容的类型：课程、文章或帖子         |
+| `content_type` | int | 是   | 收藏内容的类型：0/1/2分别表示课程、文章或帖子         |
 | `content_id`   | int    | 是   | 收藏内容的ID，课程ID、文章ID或帖子ID     |
 | `folder_id`    | int    | 否   | 选择的收藏夹ID，若为空则收藏至默认收藏夹 |
 
@@ -1794,9 +1881,9 @@ class Star(models.Model):
 
 ### （2）创建收藏夹
 
-#### **url：`/index/starred/create`**
+#### **url：`/index/star/create`**
 
-**POST `/starred/create`**
+**POST `/star/create`**
 
 **描述：**
  此接口用于用户创建一个新的收藏夹。
@@ -1805,7 +1892,6 @@ class Star(models.Model):
 
 | 参数名        | 类型   | 必填 | 描述                 |
 | ------------- | ------ | ---- | -------------------- |
-| `user_id`     | int    | 是   | 用户ID               |
 | `folder_name` | string | 是   | 收藏夹名称           |
 | `description` | string | 否   | 收藏夹的描述（可选） |
 
@@ -1825,9 +1911,9 @@ class Star(models.Model):
 
 ### （3）获取收藏列表
 
-#### **url：`/index/starred/list`**
+#### **url：`/index/star/list`**
 
-**GET `/starred/list`**
+**GET `/star/list?folder_id=folder_id`**
 
 **描述：**
  此接口用于获取当前用户的所有收藏内容，支持选择获取某个特定收藏夹下的内容。若未选择收藏夹，则返回所有收藏内容。
@@ -1836,8 +1922,7 @@ class Star(models.Model):
 
 | 参数名      | 类型 | 必填 | 描述                                   |
 | ----------- | ---- | ---- | -------------------------------------- |
-| `user_id`   | int  | 是   | 用户ID                                 |
-| `folder_id` | int  | 否   | 收藏夹ID，若为空则返回所有收藏夹的内容 |
+| `folder_id` | int  | 是   | 收藏夹ID，若为空则返回所有收藏夹的内容 |
 
 **响应参数：**
 
@@ -1855,7 +1940,7 @@ class Star(models.Model):
 
 | 参数名         | 类型   | 描述                               |
 | -------------- | ------ | ---------------------------------- |
-| `content_type` | string | 收藏内容的类型：课程、文章或帖子   |
+| `content_type` | int | 收藏内容的类型：课程、文章或帖子   |
 | `content_id`   | int    | 收藏内容的ID                       |
 | `content_name` | string | 内容的名称（如课程名、文章标题等） |
 | `created_at`   | time   | 收藏时间                           |
@@ -1874,8 +1959,7 @@ class Star(models.Model):
 **请求参数：**
 
 | 参数名         | 类型   | 必填 | 描述                                 |
-| -------------- | ------ | ---- | ------------------------------------ |
-| `user_id`      | int    | 是   | 用户ID                               |
+| -------------- | ------ | ---- | ------------------------------------|
 | `content_type` | string | 是   | 收藏内容的类型：课程、文章或帖子     |
 | `content_id`   | int    | 是   | 收藏内容的ID，课程ID、文章ID或帖子ID |
 
@@ -1885,20 +1969,18 @@ class Star(models.Model):
 - **404 Not Found**: 未找到收藏内容
 - **500 Internal Server Error**: 服务器内部错误
 
-### （5）获取收藏夹信息
+### （5）获取收藏夹列表
 
-#### **url：`/index/starred/folder`**
+#### **url：`/index/star/folder/list`**
 
-**GET `/starred/folder`**
+**GET `/star/folder/list`**
 
 **描述：**  
 此接口用于获取当前用户的所有收藏夹信息，返回每个收藏夹的基本信息以及其中的收藏内容。
 
 **请求参数：**
 
-| 参数名    | 类型 | 必填 | 描述   |
-| --------- | ---- | ---- | ------ |
-| `user_id` | int  | 是   | 用户ID |
+无
 
 **响应参数：**
 
