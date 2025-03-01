@@ -28,6 +28,7 @@
 - 1.4.5修订：获取用户头像的api传参改为`user_id`
 - 1.4.5修订：**base_url由`/index`改为`/index/api`，方便后续维护**
 - 1.4.5修订：**收藏部分进行了重构**，包括api的重命名和结构整合，删去了无意义的user_id，修复部分bug
+- 1.4.5修订：增加了获取用户列表的api
 
 Todo：
 
@@ -40,7 +41,7 @@ Todo：
 - 置顶功能的api
 - 目前基础部分就差封禁/管理员的部分，工作量不大，尽量本周写完
 - course需要保存每一个修改版本，且修改需要经过管理员审核，标记贡献者等；每个课程可以由管理员进行冻结，冻结后不接受任何提交。
-- 贡献值/荣誉分等细节，应该搞一个按照影响力排序的用户列表
+- 贡献值/荣誉分等细节，应该搞一个按照影响力排序的用户列表，为用户添加总获赞数之类的
 - 有空的时候可以做一下关注操作
 
 
@@ -361,8 +362,9 @@ class User(AbstractUser):
 #### **url：`/index/homepage`**
 
 **GET `/homepage?user_id=user_id`**
+
 **描述：**
-此接口用于向指定的邮箱发送验证码，用于验证用户邮箱。
+此接口用于获取用户主页。
 
 **请求参数：**
 
@@ -378,7 +380,7 @@ class User(AbstractUser):
 | `message` | string | 返回信息。 |
 | `data`    | list   | 用户信息   |
 
-- **200 OK**: 获取黑名单列表成功；
+- **200 OK**: 获取用户主页成功；
 - **404 Unauthorized**: 用户不存在；
 - **500 Internal Server Error**: 服务器内部错误；
 
@@ -421,6 +423,47 @@ class User(AbstractUser):
 | `major`             | string | 用户的专业。       |
 | `registration_year` | int    | 用户注册的年份。   |
 | `block_status`      | bool   | 用户是否被封禁。   |
+
+
+### （6）用户列表（按照荣誉分排序，master和super_master置顶）
+
+#### **url：`/index/user/list`**
+
+**GET `/user/list`**
+
+**描述：**
+此接口用于获取用户列表，按照荣誉分排序，`master`和`super_master`置顶。
+
+**请求参数：**
+
+无
+
+**响应参数：**
+
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `status`  | int    | 状态码。   |
+| `message` | string | 返回信息。 |
+| `user_list`    | array   | 用户对象数组   |
+
+- **200 OK**: 获取用户列表成功；
+- **404 Unauthorized**: 用户不存在；
+- **500 Internal Server Error**: 服务器内部错误；
+
+
+**若获取成功，则 `user_list` 的每个对象内容如下：**
+
+| 参数名    | 类型   | 描述       |
+| --------- | ------ | ---------- |
+| `user_id`  | int   | 用户id。   |
+| `user_name` | string | 用户名。 |
+| `reputation_level`| string  | 用户荣誉等级|
+| `all_likes` | int | 用户获得的点赞数 |
+| `all_articles`| int  | 用户创建的总文章数|
+| `master`            | bool   | 是否是管理员。     |
+| `super_master`      | bool   | 是否是超级管理员。 |
+
+
 
 ## 2.黑名单板块
 
@@ -548,9 +591,9 @@ class Article(models.Model):
     block = models.BooleanField(default=False, db_index=True, verbose_name="是否屏蔽")
     publish_time = models.DateTimeField(auto_now_add=True, verbose_name="发布时间")
     origin_link = models.CharField(max_length=255, blank=True, null=True, verbose_name="原文链接")
-    resource_link = models.CharField(max_length=255, verbose_name="资源URL")
-    article_summary = models.CharField(max_length=255, verbose_name="文章简介")
-    cover_link = models.CharField(max_length=255, verbose_name="封面URL")
+    resource_link = models.CharField(max_length=255, blank=True, null=True, verbose_name="资源URL")
+    article_summary = models.CharField(max_length=255, blank=True, null=True, default="这个人没有写简介...", verbose_name="文章简介")
+    cover_link = models.CharField(max_length=255, blank=True, null=True, default="后续改成默认封面？或者检查到空就不加载", verbose_name="封面URL")
     article_type = models.CharField(
         max_length=10,
         choices=ARTICLE_TYPE_CHOICES,
@@ -570,7 +613,7 @@ class Article(models.Model):
         ordering = ['-publish_time']
 
 class Tag(models.Model):
-    name = models.CharField(max_length=50, unique=True, verbose_name="标签名")
+    name = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="标签名")  # 添加索引
     
     def __str__(self):
         return self.name
@@ -808,48 +851,185 @@ class Tag(models.Model):
 
 ```python
 class Post(models.Model):
-    id = models.AutoField(primary_key=True)
-    post_title = models.CharField(max_length=255)
-    poster = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
-    content = models.TextField()
-    tags = models.CharField(max_length=255)
-    views = models.IntegerField(default=0)
-    likes = GenericRelation(Like)
-    block = models.BooleanField(default=False)
-    top = models.BooleanField(default=False)
-    publish_time = models.DateTimeField(auto_now_add=True)
-    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name='posts', null=True, blank=True)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='posts', null=True, blank=True)
+    id = models.AutoField(primary_key=True, verbose_name="帖子ID")
+    post_title = models.CharField(
+        max_length=255,
+        verbose_name="帖子标题",
+        help_text="标题最多255个字符",
+        db_index=True  # 添加标题索引
+    )
+    poster = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='posts',
+        verbose_name="发帖人",
+        db_index=True  # 外键索引
+    )
+    content = models.TextField(
+        verbose_name="内容",
+        help_text="支持Markdown格式"
+    )
+    views = models.PositiveIntegerField(
+        default=0,
+        verbose_name="浏览量",
+        help_text="通过原子操作更新"
+    )
+    likes = GenericRelation(
+        'Like',
+        verbose_name="点赞",
+        related_query_name='post'  # 优化反向查询
+    )
+    block = models.BooleanField(
+        default=False,
+        verbose_name="是否屏蔽",
+        db_index=True  # 高频过滤字段索引
+    )
+    top = models.BooleanField(
+        default=False,
+        verbose_name="是否置顶",
+        db_index=True  # 高频排序字段索引
+    )
+    publish_time = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="发布时间",
+        db_index=True  # 时间索引
+    )
+    article = models.ForeignKey(
+        'Article',
+        on_delete=models.SET_NULL,  # 文章删除后保留帖子
+        related_name='posts',
+        null=True,
+        blank=True,
+        verbose_name="关联文章",
+        db_index=True
+    )
+    course = models.ForeignKey(
+        'Course',
+        on_delete=models.SET_NULL,  # 课程删除后保留帖子
+        related_name='posts',
+        null=True,
+        blank=True,
+        verbose_name="关联课程",
+        db_index=True
+    )
+    hot_score = models.FloatField(
+        default=0.0,
+        verbose_name="热度分",
+        db_index=True,
+        help_text="计算公式：浏览量×0.3 + 点赞数×0.7",
+        editable=False  # 防止人工修改
+    )
 
-    def send_notification(self, mentioned_user):
-        Notification.objects.create(
-            user=mentioned_user,
-            message=f"Your article have a new post, title:{self.post_title[:50]}, content:{self.content[:50]}"  # 通知消息可以包含帖子内容的前50个字符
-        )
+    class Meta:
+        verbose_name = "帖子"
+        verbose_name_plural = "帖子"
+        ordering = ['-publish_time']  # 默认时间倒序
+        indexes = [
+            # 置顶+时间联合索引
+            models.Index(fields=['top', '-publish_time']),
+            # 作者+时间联合索引
+            models.Index(fields=['poster', '-publish_time']),
+            models.Index(fields=['article', '-publish_time']),
+            models.Index(fields=['course', '-publish_time']),
+            # 优化排序查询
+            models.Index(fields=['-views']),
+            models.Index(fields=['-hot_score']),
+            models.Index(fields=['-publish_time', 'block']),
+            # 热度分排序索引
+            models.Index(fields=['-hot_score', '-publish_time']),
+            # 联合查询优化
+            models.Index(fields=['block', '-hot_score']),
+        ]
+        get_latest_by = 'publish_time'
 
     def __str__(self):
-        return self.post_title
+        return f"{self.post_title[:20]}（{self.poster.username}@{self.publish_time:%Y-%m-%d}）"
+
+    def save(self, *args, **kwargs):
+        """保存前校验必填字段"""
+        if not self.post_title.strip():
+            raise ValueError("帖子标题不能为空")
+        if len(self.content.strip()) < 10:
+            raise ValueError("内容至少需要10个有效字符")
+        super().save(*args, **kwargs)
+
+    @property
+    def reply_count(self):
+        """实时统计回复数（可缓存优化）"""
+        return self.replies.count()
+    
+    def update_hot_scores():
+        Post.objects.update(
+            hot_score=0.3 * F('views') + 0.7 * F('like_count')
+        )
+
+    def increment_views(self):
+        """原子操作更新浏览量"""
+        Post.objects.filter(id=self.id).update(views=models.F('views') + 1)
 ```
 
 **Reply类如下：**
 
 ```python
 class Reply(models.Model):
-    id = models.AutoField(primary_key=True)
-    reply_content = models.TextField()
-    reply_time = models.DateTimeField(auto_now_add=True)
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='replies')
-    replier = models.ForeignKey(User, on_delete=models.CASCADE, related_name='replies')
-    likes = GenericRelation(Like)
+    id = models.AutoField(primary_key=True, verbose_name="回复ID")
+    reply_content = models.TextField(verbose_name="回复内容", help_text="回复内容最多支持5000字符")
+    reply_time = models.DateTimeField(auto_now_add=True, verbose_name="回复时间", db_index=True)
+    
+    post = models.ForeignKey(
+        'Post',
+        on_delete=models.CASCADE,
+        related_name='replies',
+        verbose_name="关联帖子",
+        db_index=True
+    )
+    
+    replier = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='replies',
+        verbose_name="回复用户",
+        db_index=True
+    )
+    
+    parent_reply = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name="父级回复",
+        db_index=True
+    )
+    
+    likes = GenericRelation(
+        'Like',
+        verbose_name="点赞",
+        help_text="通过GenericForeignKey实现的通用点赞关系"
+    )
 
-    def send_notification(self, mentioned_user):
-        Notification.objects.create(
-            user=mentioned_user,
-            message=f"You were mentioned in a reply: {self.reply_content[:50]}"  # 通知消息可以包含回复内容的前50个字符
-        )
+    class Meta:
+        verbose_name = "帖子回复"
+        verbose_name_plural = "帖子回复"
+        ordering = ['-reply_time']
+        indexes = [
+            models.Index(fields=['post', 'parent_reply', '-reply_time']),
+            models.Index(fields=['replier', '-reply_time']),
+        ]
 
     def __str__(self):
-        return f'Reply to {self.post.post_title} by {self.replier.username}'
+        return f"{self.replier.username} → {self.post.post_title[:20]}（{self.reply_time:%Y-%m-%d}）"
+
+    def save(self, *args, **kwargs):
+        if len(self.reply_content.strip()) < 5:
+            raise ValueError("回复内容至少需要5个有效字符")
+        super().save(*args, **kwargs)
+
+    def save(self, *args, **kwargs):
+        """保存前自动校验内容长度"""
+        if len(self.reply_content.strip()) < 5:
+            raise ValueError("回复内容至少需要5个有效字符")
+        super().save(*args, **kwargs)
 ```
 
 ### （1）在Article下发帖
