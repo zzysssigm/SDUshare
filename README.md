@@ -2172,7 +2172,7 @@ class Image(models.Model):
 **GET `/image/get/<image_name>`**
 
 **描述：**
- 此接口用于获取图片
+ 此接口用于获取图片,实际上相当于对图片文件进行一个挂载，在文章中上传图片返回的url即是该api格式的
 
 **请求参数：**
 
